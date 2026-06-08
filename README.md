@@ -279,3 +279,4 @@ El Service Worker (`public/sw.js`) implementa 4 estrategias:
 **Grupo 10** — Proyecto Educativo de Lectoescritura
 > Plataforma gamificada para el fortalecimiento de la lectoescritura en niños de primer grado.
 > Currículo venezolano — Enfoque fonético-silábico.
+"# Letramente" 
