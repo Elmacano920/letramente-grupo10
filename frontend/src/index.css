@@ -1,0 +1,213 @@
+/* ============================================================
+   Letramente — index.css
+   Tailwind CSS v3 + Custom Layer
+   Grupo 10 | Aprende, Comprende, Crea
+   ============================================================ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+/* ─── Base Global ─────────────────────────────────────────── */
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    @apply font-brand min-h-screen overflow-x-hidden text-white;
+    /* 🎨 Fondo alegre para niños — Letramente */
+    background-color: #12004a;
+    background-image:
+      radial-gradient(ellipse 80% 60% at 15% 10%,  rgba(139,92,246,0.55)  0%, transparent 55%),
+      radial-gradient(ellipse 70% 50% at 85% 5%,   rgba(255,123,44,0.45)  0%, transparent 50%),
+      radial-gradient(ellipse 60% 50% at 50% 95%,  rgba(46,184,126,0.40)  0%, transparent 55%),
+      radial-gradient(ellipse 50% 60% at 90% 60%,  rgba(6,182,212,0.35)   0%, transparent 50%),
+      radial-gradient(ellipse 60% 40% at 5%  70%,  rgba(236,72,153,0.30)  0%, transparent 45%),
+      radial-gradient(ellipse 40% 30% at 50% 50%,  rgba(255,210,63,0.12)  0%, transparent 40%);
+  }
+
+  h1,h2,h3,h4,h5,h6 {
+    @apply font-brand font-extrabold leading-tight text-white;
+  }
+
+  ::-webkit-scrollbar       { width: 8px; }
+  ::-webkit-scrollbar-track { background: rgba(18,0,74,0.5); }
+  ::-webkit-scrollbar-thumb { background: rgba(139,92,246,0.6); border-radius: 9999px; }
+}
+
+
+/* ─── Componentes ─────────────────────────────────────────── */
+@layer components {
+
+  /* ── Tarjeta glassmorphism ── */
+  .glass-card {
+    background-color: rgba(255,255,255,0.05);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.1);
+    @apply rounded-3xl shadow-card transition-all duration-300;
+  }
+  .glass-card:hover {
+    @apply -translate-y-1 shadow-card-hover;
+    border-color: rgba(6,182,212,0.25);
+  }
+
+  /* ── Base de botones ── */
+  .btn-letramente {
+    @apply inline-flex items-center justify-center gap-2
+           px-6 py-3 rounded-full font-brand font-extrabold text-base
+           cursor-pointer transition-all duration-200
+           active:scale-95 select-none whitespace-nowrap;
+    border: none;
+  }
+  .btn-orange {
+    @apply btn-letramente text-white shadow-glow-orange hover:-translate-y-0.5;
+    background: linear-gradient(135deg, #ff7b2c, #cc5a14);
+  }
+  .btn-green {
+    @apply btn-letramente text-white shadow-glow-green hover:-translate-y-0.5;
+    background: linear-gradient(135deg, #2eb87e, #1a8a5a);
+  }
+  .btn-purple {
+    @apply btn-letramente text-white shadow-glow-purple hover:-translate-y-0.5;
+    background: linear-gradient(135deg, #8b5cf6, #6d28d9);
+  }
+  .btn-cyan {
+    @apply btn-letramente text-white shadow-glow-cyan hover:-translate-y-0.5;
+    background: linear-gradient(135deg, #06b6d4, #0e7490);
+  }
+  .btn-yellow {
+    @apply btn-letramente font-black hover:-translate-y-0.5;
+    background: linear-gradient(135deg, #ffd23f, #f59e0b);
+    color: #0f1a3d;
+  }
+  .btn-ghost {
+    @apply btn-letramente text-white;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .btn-ghost:hover {
+    background: rgba(255,255,255,0.10);
+    border-color: #67e8f9;
+  }
+  .btn-success {
+    @apply btn-letramente text-white;
+    background: linear-gradient(135deg, #2eb87e, #06b6d4);
+  }
+  .btn-lg  { @apply text-xl px-8 py-4; }
+  .btn-sm  { @apply text-sm px-4 py-2; }
+
+  /* ── Badges ── */
+  .badge {
+    @apply inline-flex items-center gap-1 px-3 py-1 rounded-full
+           text-xs font-bold uppercase tracking-wider;
+  }
+  .badge-orange {
+    background: rgba(255,123,44,0.2);
+    color: #ffaa6b;
+    border: 1px solid rgba(255,123,44,0.3);
+  }
+  .badge-green {
+    background: rgba(46,184,126,0.2);
+    color: #5ed4a4;
+    border: 1px solid rgba(46,184,126,0.3);
+  }
+  .badge-purple {
+    background: rgba(139,92,246,0.2);
+    color: #c4b5fd;
+    border: 1px solid rgba(139,92,246,0.3);
+  }
+  .badge-cyan {
+    background: rgba(6,182,212,0.2);
+    color: #67e8f9;
+    border: 1px solid rgba(6,182,212,0.3);
+  }
+  .badge-yellow {
+    background: rgba(255,210,63,0.2);
+    color: #fcd34d;
+    border: 1px solid rgba(255,210,63,0.3);
+  }
+  .badge-navy {
+    background: rgba(26,43,94,0.4);
+    color: #93c5fd;
+    border: 1px solid rgba(45,74,158,0.4);
+  }
+
+  /* ── Input ── */
+  .input-letramente {
+    @apply w-full px-5 py-3.5 rounded-2xl font-brand text-base text-white
+           transition-all duration-150;
+    background-color: #101a3d;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .input-letramente::placeholder { color: rgba(255,255,255,0.3); }
+  .input-letramente:focus {
+    outline: none;
+    border-color: #06b6d4;
+    box-shadow: 0 0 0 2px rgba(6,182,212,0.2);
+  }
+
+  /* ── Barra de progreso ── */
+  .progress-track {
+    @apply w-full h-3 rounded-full overflow-hidden;
+    background-color: rgba(255,255,255,0.08);
+  }
+  .progress-fill {
+    @apply h-full rounded-full transition-all duration-500 ease-out;
+    background: linear-gradient(90deg, #06b6d4, #2eb87e);
+    position: relative;
+    overflow: hidden;
+  }
+  .progress-fill::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    animation: shimmer 1.5s infinite;
+  }
+
+  /* ── Puntos de marca ── */
+  .brand-dots { @apply flex items-center gap-1.5; }
+  .brand-dot  { @apply w-2 h-2 rounded-full animate-dot-pulse; }
+
+  /* ── Gradiente de texto ── */
+  .text-gradient-brand {
+    background: linear-gradient(135deg, #ff7b2c, #ffd23f, #2eb87e, #06b6d4, #8b5cf6);
+    background-size: 300% 300%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: gradientShift 4s ease infinite;
+  }
+  .text-gradient-static {
+    background: linear-gradient(135deg, #06b6d4, #2eb87e);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ── Spinner ── */
+  .spinner {
+    @apply w-12 h-12 rounded-full animate-spin;
+    border: 4px solid rgba(255,255,255,0.1);
+    border-top-color: #06b6d4;
+  }
+
+  /* ── Loading screen ── */
+  .loading-screen {
+    @apply fixed inset-0 flex flex-col items-center justify-center gap-5;
+    background-color: #080e24;
+  }
+}
+
+/* ─── Utilidades Extra ────────────────────────────────────── */
+@layer utilities {
+  .font-brand { font-family: 'Nunito', sans-serif; }
+
+  .bg-navy-glass  { background-color: rgba(26,43,94,0.6); }
+  .bg-surface-sm  { background-color: rgba(255,255,255,0.05); }
+  .bg-surface-md  { background-color: rgba(255,255,255,0.08); }
+
+  .border-subtle  { border-color: rgba(255,255,255,0.1); }
+  .border-cyan-sm { border-color: rgba(6,182,212,0.2); }
+}

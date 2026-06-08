@@ -1,0 +1,32 @@
+# ── Node.js ──────────────────────────────────────────────────
+# IMPORTANTE: node_modules NO se comparte. Cada persona debe
+# ejecutar "npm install" o usar el script "instalar.bat"
+node_modules/
+npm-debug.log*
+yarn-error.log
+
+# ── Base de datos NeDB ─────────────────────────────────────────
+# Los archivos .db se crean automáticamente al ejecutar seed.js
+# Comentar estas líneas si quieres compartir los datos también
+backend/database/*.db
+
+# ── Build de producción ────────────────────────────────────────
+frontend/dist/
+frontend/.vite/
+
+# ── Variables de entorno ───────────────────────────────────────
+# NOTA: El .env del proyecto está incluido intencionalmente
+# porque solo contiene valores de desarrollo (sin secretos reales)
+# Si hay producción real, descomentar esta línea:
+# backend/.env
+
+# ── Sistema operativo ─────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editores ──────────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.swp
+*.swo

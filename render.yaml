@@ -1,0 +1,44 @@
+# render.yaml — Configuración de deploy automático en Render.com
+# Documentación: https://render.com/docs/render-yaml-spec
+#
+# Este archivo le dice a Render cómo desplegar el backend de Letramente.
+# Solo necesitas conectar tu repositorio en Render y él lo detecta solo.
+
+services:
+  - type: web
+    name: letramente-api          # Nombre del servicio en Render
+    runtime: node
+    rootDir: backend              # La carpeta del backend dentro del repo
+    plan: free                    # Plan gratuito de Render
+
+    # Comando para instalar dependencias
+    buildCommand: npm install
+
+    # Comando para arrancar el servidor en producción
+    # (usa 'start' no 'dev' — sin nodemon en producción)
+    startCommand: npm start
+
+    # Variables de entorno en Render
+    # Las SECRET deben configurarse manualmente en el dashboard de Render
+    # Las demás se ponen aquí directamente
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      - key: PORT
+        value: 3001
+
+      - key: JWT_EXPIRES_IN
+        value: 7d
+
+      # ⚠️ IMPORTANTE: Configura estos en el dashboard de Render (no aquí):
+      # - JWT_SECRET        → una clave secreta larga y aleatoria
+      # - FRONTEND_URL      → la URL de Vercel (ej: https://letramente.vercel.app)
+
+    # Disco persistente para que la base de datos NeDB no se borre al redeploy
+    # Plan gratuito de Render tiene disco efímero — los datos se pierden al reiniciar
+    # Para persistencia real, considera MongoDB Atlas (gratuito hasta 512MB)
+    # disk:
+    #   name: letramente-db
+    #   mountPath: /opt/render/project/src/backend/database
+    #   sizeGB: 1

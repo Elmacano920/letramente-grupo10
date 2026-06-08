@@ -1,0 +1,5 @@
+{
+  "watch": ["src"],
+  "ignore": ["database/**", "database/lectoplay.json"],
+  "ext": "js,mjs,cjs"
+}

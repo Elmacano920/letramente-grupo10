@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Letramente — Sin conexión</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      background: #0d1117;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      font-family: 'Nunito', system-ui, sans-serif;
+      color: white; text-align: center; padding: 2rem;
+    }
+    .emoji { font-size: 5rem; margin-bottom: 1.5rem; animation: float 3s ease-in-out infinite; }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
+    h1 { font-size: 2rem; font-weight: 900; margin-bottom: 0.75rem; color: #2eb87e; }
+    p  { color: rgba(255,255,255,0.6); margin-bottom: 2rem; max-width: 320px; line-height: 1.6; }
+    button {
+      padding: 0.875rem 2rem; border-radius: 1rem;
+      background: #2eb87e; border: none; color: white;
+      font-family: inherit; font-weight: 800; font-size: 1rem;
+      cursor: pointer; transition: transform 0.2s;
+    }
+    button:hover { transform: scale(1.05); }
+  </style>
+</head>
+<body>
+  <div class="emoji">🌐</div>
+  <h1>Sin conexión</h1>
+  <p>Parece que no hay internet ahora. ¡No te preocupes! Tus avances ya están guardados y podrás continuar cuando vuelvas.</p>
+  <button onclick="window.location.reload()">🔄 Reintentar</button>
+</body>
+</html>

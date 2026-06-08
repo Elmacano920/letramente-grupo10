@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Letramente — Plataforma gamificada para el fortalecimiento de la lectoescritura en niños de primer grado. Aprende, Comprende, Crea. Grupo 10." />
+    <meta name="keywords" content="lectoescritura, educación, niños, primer grado, gamificación, fonética, Letramente" />
+    <meta name="author" content="Grupo 10" />
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#2eb87e" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Letramente" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Letramente — Aprende, Comprende, Crea" />
+    <meta property="og:description" content="Plataforma gamificada de lectoescritura para niños de primer grado." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/logo.png" />
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <title>Letramente — Aprende, Comprende, Crea 🧠📖</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+
+    <!-- Registrar Service Worker (PWA) -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker
+            .register('/sw.js', { scope: '/' })
+            .then(reg => {
+              console.log('[PWA] Service Worker registrado:', reg.scope);
+
+              // Notificar al usuario cuando hay una nueva versión
+              reg.addEventListener('updatefound', () => {
+                const newSW = reg.installing;
+                newSW?.addEventListener('statechange', () => {
+                  if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+                    // Hay una nueva versión disponible — el toast lo manejará React
+                    window.dispatchEvent(new CustomEvent('sw-update-available'));
+                  }
+                });
+              });
+            })
+            .catch(err => console.warn('[PWA] Error registrando SW:', err));
+        });
+      }
+    </script>
+  </body>
+</html>
