@@ -248,10 +248,10 @@ function generarOpciones(correcta) {
   return shuffle([{ texto: correcta, esCorrecta: true }, ...malas.map(t => ({ texto: t, esCorrecta: false }))]);
 }
 
-// ══════════════════════════════════════════════════════
-// EJECUTAR
-// ══════════════════════════════════════════════════════
-const seed = async () => {
+
+// ─── Función principal del seed ───────────────────────────────────────────────
+// Exportada para que server.js pueda llamarla SIN process.exit()
+const runSeed = async () => {
   console.log('\n🌱 Letramente — Seeder v3 (Abecedario Completo)\n');
 
   const eliminados = await Reto.remove({}, { multi: true });
@@ -264,17 +264,28 @@ const seed = async () => {
   }
 
   const total = todos.length;
-  console.log(`✅ Creados ${total} retos:\n`);
-  console.log(`   🔤 Vocales:      ${VOCALES.length}   (A, E, I, O, U — dobles)`);
-  console.log(`   🔡 Consonantes:  ${CONSONANTES.length}  (B C D F G H J K L M N Ñ P Q R S T V W Y Z)`);
-  console.log(`   📝 Sílabas:      ${SILABAS.length}  (completar la letra que falta)`);
-  console.log(`   📖 Palabras:     ${PALABRAS.length}  (animales, alimentos, objetos, naturaleza, familia, cuerpo)`);
-  console.log(`\n   TOTAL: ${total} retos — ¡Abecedario completo!\n`);
-  console.log('🎉 ¡Base de datos lista!\n');
-  process.exit(0);
+  console.log(`✅ Creados ${total} retos:`);
+  console.log(`   🔤 Vocales:      ${VOCALES.length}`);
+  console.log(`   🔡 Consonantes:  ${CONSONANTES.length}`);
+  console.log(`   📝 Sílabas:      ${SILABAS.length}`);
+  console.log(`   📖 Palabras:     ${PALABRAS.length}`);
+  console.log(`\n   TOTAL: ${total} retos\n`);
 };
 
-seed().catch(err => {
-  console.error('❌ Error:', err.message);
-  process.exit(1);
-});
+// Exportar para uso interno (server.js auto-seed sin process.exit)
+module.exports = { runSeed };
+
+// ─── Ejecución directa: node seed.js ─────────────────────────────────────────
+// Solo llama process.exit() cuando se ejecuta manualmente desde terminal.
+// Cuando server.js hace require('../seed'), este bloque NO se ejecuta.
+if (require.main === module) {
+  runSeed()
+    .then(() => {
+      console.log('🎉 ¡Base de datos lista!\n');
+      process.exit(0);
+    })
+    .catch(err => {
+      console.error('❌ Error en seed:', err.message);
+      process.exit(1);
+    });
+}

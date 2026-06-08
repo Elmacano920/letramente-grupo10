@@ -25,15 +25,13 @@ services:
       - key: NODE_ENV
         value: production
 
-      - key: PORT
-        value: 3001
-
       - key: JWT_EXPIRES_IN
         value: 7d
 
-      # ⚠️ IMPORTANTE: Configura estos en el dashboard de Render (no aquí):
-      # - JWT_SECRET        → una clave secreta larga y aleatoria
-      # - FRONTEND_URL      → la URL de Vercel (ej: https://letramente.vercel.app)
+      # ⚠️ Configura estos en el dashboard de Render (no aquí):
+      # - JWT_SECRET    → clave secreta larga (ej: letramente_grupo10_2024_xK9mP)
+      # - FRONTEND_URL  → URL de Vercel (ej: https://letramente.vercel.app)
+      # NOTA: NO pongas PORT aquí — Render lo asigna automáticamente
 
     # Disco persistente para que la base de datos NeDB no se borre al redeploy
     # Plan gratuito de Render tiene disco efímero — los datos se pierden al reiniciar

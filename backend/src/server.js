@@ -22,19 +22,22 @@ if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 const db = require('./config/database');
 
 // ─── Auto-seed: poblar retos si la BD está vacía ──────────────────────────────
-// Esto permite que el servidor arranque correctamente en Render/Railway/etc.
-// sin necesidad de ejecutar "node seed.js" manualmente.
+// IMPORTANTE: no usamos require('../seed') porque ese archivo llama process.exit()
+// En su lugar, importamos solo la función de inserción de retos.
 (async () => {
   try {
     const total = await db.Reto.count({});
     if (total === 0) {
-      console.log('📦 Base de datos vacía. Ejecutando seed automático...');
-      require('../seed');
+      console.log('📦 BD vacía — ejecutando seed automático...');
+      // Llamar al seed exportado (sin process.exit)
+      const { runSeed } = require('../seed');
+      await runSeed();
+      console.log('✅ Seed completado');
     } else {
       console.log(`📦 BD lista: ${total} retos encontrados`);
     }
   } catch (e) {
-    console.warn('⚠️  No se pudo verificar el seed:', e.message);
+    console.warn('⚠️  Seed omitido:', e.message);
   }
 })();
 
