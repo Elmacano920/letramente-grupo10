@@ -7,11 +7,13 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // Proxy las llamadas a /api al servidor backend en desarrollo
       '/api': {
         target: 'http://localhost:3001',
         changeOrigin: true,
       },
     },
+  },
+  build: {
+    target: 'es2015', // ← NUEVO: Soporte para móviles/navegadores más antiguos
   },
 });
