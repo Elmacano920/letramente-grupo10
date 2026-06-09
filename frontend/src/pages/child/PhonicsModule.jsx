@@ -90,6 +90,25 @@ const OptionButton = ({ text, onClick, state, disabled }) => {
   );
 };
 
+// ─── Mapa de emojis correctos por palabra ────────────────────────────────────
+// Fallback cuando la imagen PNG no existe en /public/images/
+// Garantiza que cada palabra muestre un emoji semánticamente correcto
+const EMOJI_MAP = {
+  'AVIÓN':'✈️','ÁGUILA':'🦅','ELEFANTE':'🐘','ESTRELLA':'⭐','IGUANA':'🦎',
+  'IRIS':'🌈','OSO':'🐻','OLA':'🌊','UVA':'🍇','UNICORNIO':'🦄',
+  'MAMÁ':'👩','MESA':'🪑','MAPA':'🗺️','PAPÁ':'👨','PATO':'🦆',
+  'POLO':'🧊','SAPO':'🐸','SOPA':'🥣','SILO':'🌾','LUNA':'🌙',
+  'LOMA':'⛰️','LUPA':'🔍','TAPA':'🫙','TINO':'🎯','NIDO':'🪺',
+  'NUDO':'🪢','DADO':'🎲','DEDO':'☝️','PUMA':'🐆','DUNA':'🏜️',
+  'MIMO':'🤡','BURRO':'🫏','CABALLO':'🐴','DELFÍN':'🐬','FLOR':'🌺',
+  'GATO':'🐱','HOJA':'🍃','JIRAFA':'🦒','KOALA':'🐨','LEONA':'🦁',
+  'MONO':'🐒','NOCHE':'🌙','ÑAME':'🍠','PÁJARO':'🐦','QUESO':'🧀',
+  'RANA':'🐸','SOL':'☀️','TORTUGA':'🐢','VACA':'🐄','WASABI':'🌿',
+  'YEMA':'🥚','ZORRO':'🦊','PERRO':'🐕','ÁRBOL':'🌳','CASA':'🏠',
+};
+const getEmoji = (palabraClave, fallback) =>
+  EMOJI_MAP[palabraClave?.toUpperCase()] || fallback || '📝';
+
 // ─── Componente Principal ─────────────────────────────────────────────────────
 const PhonicsModule = () => {
   const navigate             = useNavigate();
@@ -106,6 +125,8 @@ const PhonicsModule = () => {
   const [startTime]                   = useState(() => Date.now());
   const [wordFlash, setWordFlash]     = useState(false);
   const [questionStart, setQStart]    = useState(() => Date.now()); // ← telemetría
+  // Evita que sayInstruction() corte el audio de sayCorrect()/sayWrong()
+  const answerSpeaking = React.useRef(false);
 
   // Cargar retos de la categoría correcta
   useEffect(() => {
@@ -132,9 +153,14 @@ const PhonicsModule = () => {
   const style    = CAT_STYLE[categoria] || CAT_STYLE.Palabras;
 
   // Leer la instrucción del reto actual
+  // Si answerSpeaking es true, espera 2500ms para no cortar el audio de la respuesta
   useEffect(() => {
     if (question?.instruccion && mode === 'playing') {
-      const t = setTimeout(() => SpeechService.sayInstruction(question.instruccion), 500);
+      const delay = answerSpeaking.current ? 2500 : 500;
+      const t = setTimeout(() => {
+        answerSpeaking.current = false;
+        SpeechService.sayInstruction(question.instruccion);
+      }, delay);
       return () => clearTimeout(t);
     }
   }, [idx, mode, question]);
@@ -151,10 +177,12 @@ const PhonicsModule = () => {
       setWordFlash(true);
       setTimeout(() => setWordFlash(false), 1200);
       const palabra = question.palabraClave || question.respuestaCorrecta || '';
+      answerSpeaking.current = true; // bloquea sayInstruction hasta que termine el audio
       setTimeout(() => SpeechService.sayCorrect(palabra), 300);
     } else {
       setRobotMood('error');
       const palabraCorrecta = question.palabraClave || question.respuestaCorrecta || '';
+      answerSpeaking.current = true; // bloquea sayInstruction hasta que termine el audio
       setTimeout(() => SpeechService.sayWrong(palabraCorrecta), 200);
       // ← TELEMETRÍA: registrar confusión específica
       registrarErrorTelemetria({
@@ -325,7 +353,14 @@ const PhonicsModule = () => {
                         filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.3))',
                         animation: 'float 3s ease-in-out infinite',
                       }}
-                      onError={e => { e.target.style.display = 'none'; }}
+                      onError={e => {
+                        // Imagen no existe: reemplazar con el emoji correcto
+                        const em = getEmoji(question.palabraClave, question.emoji);
+                        e.target.replaceWith(Object.assign(document.createElement('div'), {
+                          textContent: em,
+                          style: 'font-size:6rem;margin-bottom:1rem;text-align:center;animation:float 3s ease-in-out infinite',
+                        }));
+                      }}
                     />
                   ) : (
                     <motion.div
@@ -333,7 +368,7 @@ const PhonicsModule = () => {
                       transition={{ repeat: Infinity, duration: 3 }}
                       style={{ fontSize: '6rem', marginBottom: '1rem', display: 'inline-block' }}
                     >
-                      {question.emoji}
+                      {getEmoji(question.palabraClave, question.emoji)}
                     </motion.div>
                   )}
 
@@ -391,7 +426,7 @@ const PhonicsModule = () => {
                     transition={{ repeat: Infinity, duration: 3.5, ease: 'easeInOut' }}
                     style={{ fontSize: '7rem', marginBottom: '1rem', display: 'inline-block' }}
                   >
-                    {question.emoji}
+                    {getEmoji(question.palabraClave, question.emoji)}
                   </motion.div>
 
                   {/* Palabra/hueco a completar */}
