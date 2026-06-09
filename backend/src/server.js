@@ -66,10 +66,9 @@ if (process.env.FRONTEND_URL && !allowedOrigins.includes(process.env.FRONTEND_UR
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Permitir requests sin origen (Postman, curl, mobile apps)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    callback(new Error(`CORS bloqueado para: ${origin}`));
+    // Para el entorno de producción (educativo), permitimos cualquier origen dinámicamente
+    // Esto evita bloqueos por falta de configuración de FRONTEND_URL, trailing slashes, etc.
+    callback(null, origin || true);
   },
   credentials: true,
 }));
