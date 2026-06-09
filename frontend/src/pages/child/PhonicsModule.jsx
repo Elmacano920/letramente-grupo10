@@ -13,7 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useGame } from '../../context/GameContext';
 import SpeechService from '../../services/SpeechService';
 import LapizRobot from '../../components/game/LapizRobot';
-import WrongAnswerFeedback from '../../components/game/WrongAnswerFeedback'; // ← NUEVO
+import WrongAnswerFeedback, { WrongButton } from '../../components/game/WrongAnswerFeedback';
 
 // ── Telemetría: registrar error de confusión ──────────────────────────────────
 const registrarErrorTelemetria = async ({ retoId, categoria, elegida, correcta, palabraClave, tiempoMs }) => {
