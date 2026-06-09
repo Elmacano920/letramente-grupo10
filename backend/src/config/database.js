@@ -104,20 +104,28 @@ const TelemetriaModel = mongoose.model('Telemetria', TelemetriaSchema);
 // ─── Adaptador: misma API que NeDB ───────────────────────────────────────────
 // Los controladores usan findOne/find/insert/update/remove/count
 // Esta capa traduce esas llamadas a Mongoose sin tocar ningún controlador.
+const toPlain = (doc) => {
+  if (!doc) return null;
+  const obj = typeof doc.toObject === 'function' ? doc.toObject() : { ...doc };
+  if (obj._id) obj._id = obj._id.toString();
+  return obj;
+};
+
 const adapt = (Model) => ({
 
-  findOne: (query) =>
-    Model.findOne(query).lean(),
+  findOne: async (query) => {
+    const doc = await Model.findOne(query).lean();
+    return toPlain(doc);
+  },
 
-  find: (query = {}, sort = {}) =>
-    Model.find(query).sort(sort).lean(),
+  find: async (query = {}, sort = {}) => {
+    const docs = await Model.find(query).sort(sort).lean();
+    return docs.map(toPlain);
+  },
 
   insert: async (doc) => {
     const created = await Model.create(doc);
-    // Devolver como objeto plano con _id como string (igual que NeDB)
-    const plain = created.toObject();
-    plain._id = plain._id.toString();
-    return plain;
+    return toPlain(created);
   },
 
   update: async (query, update, opts = {}) => {
@@ -126,7 +134,7 @@ const adapt = (Model) => ({
       return null;
     }
     const doc = await Model.findOneAndUpdate(query, update, { new: true }).lean();
-    return doc;
+    return toPlain(doc);
   },
 
   remove: async (query, opts = {}) => {

@@ -15,22 +15,25 @@ const morgan  = require('morgan');
 const db = require('./config/database');
 
 // ─── Auto-seed: poblar retos si la BD está vacía ──────────────────────────────
-// Espera 3s para que la conexión Mongoose esté establecida antes de consultar
-setTimeout(async () => {
+// Usamos el evento 'open' de Mongoose para garantizar que la conexión
+// está lista ANTES de intentar consultar la BD.
+const mongoose = require('mongoose');
+mongoose.connection.once('open', async () => {
   try {
+    const db = require('./config/database');
     const total = await db.Reto.count({});
     if (total === 0) {
       console.log('📦 BD vacía — ejecutando seed automático...');
       const { runSeed } = require('../seed');
       await runSeed();
-      console.log('✅ Seed completado');
+      console.log('✅ Seed completado en MongoDB Atlas');
     } else {
       console.log(`📦 BD lista: ${total} retos en MongoDB Atlas`);
     }
   } catch (e) {
     console.warn('⚠️  Seed omitido:', e.message);
   }
-}, 3000);
+});
 
 
 // ─── Rutas ────────────────────────────────────────────────────────────────────
