@@ -1,45 +1,36 @@
 /**
- * Letramente Backend — server.js (NeDB)
+ * Letramente Backend — server.js (MongoDB Atlas)
  * Grupo 10 | Aprende, Comprende, Crea
  *
- * Stack: Node.js + Express + NeDB
- * Sin MongoDB. Sin pago. Sin instalación extra.
- * Los datos se guardan en archivos .db en /database/
+ * Stack: Node.js + Express + MongoDB Atlas (Mongoose)
+ * Datos persistentes en la nube — no se pierden al reiniciar.
  */
 
 require('dotenv').config();
-const express   = require('express');
-const cors      = require('cors');
-const morgan    = require('morgan');
-const path      = require('path');
-const fs        = require('fs');
+const express = require('express');
+const cors    = require('cors');
+const morgan  = require('morgan');
 
-// Asegurar que la carpeta database/ exista
-const dbDir = path.join(__dirname, '../database');
-if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
-
-// Inicializar BD (crea los archivos .db automáticamente)
+// Inicializar conexión a MongoDB Atlas
 const db = require('./config/database');
 
 // ─── Auto-seed: poblar retos si la BD está vacía ──────────────────────────────
-// IMPORTANTE: no usamos require('../seed') porque ese archivo llama process.exit()
-// En su lugar, importamos solo la función de inserción de retos.
-(async () => {
+// Espera 3s para que la conexión Mongoose esté establecida antes de consultar
+setTimeout(async () => {
   try {
     const total = await db.Reto.count({});
     if (total === 0) {
       console.log('📦 BD vacía — ejecutando seed automático...');
-      // Llamar al seed exportado (sin process.exit)
       const { runSeed } = require('../seed');
       await runSeed();
       console.log('✅ Seed completado');
     } else {
-      console.log(`📦 BD lista: ${total} retos encontrados`);
+      console.log(`📦 BD lista: ${total} retos en MongoDB Atlas`);
     }
   } catch (e) {
     console.warn('⚠️  Seed omitido:', e.message);
   }
-})();
+}, 3000);
 
 
 // ─── Rutas ────────────────────────────────────────────────────────────────────

@@ -1,210 +1,152 @@
 /**
- * Letramente — Base de Datos con NeDB
+ * Letramente — Base de Datos con MongoDB Atlas + Mongoose
  * Grupo 10 | Aprende, Comprende, Crea
  *
- * ─────────────────────────────────────────────────────────────────────────────
- * ¿POR QUÉ NeDB Y NO MongoDB?
- * ─────────────────────────────────────────────────────────────────────────────
- * La decisión de usar NeDB fue deliberada para este contexto académico:
+ * Migración de NeDB → MongoDB Atlas para persistencia real en producción.
+ * La API exportada es IDÉNTICA a la versión NeDB: los controladores no cambian.
  *
- *  VENTAJAS de NeDB (por qué lo elegimos):
- *  ✔  Sin instalación externa — corre en Node.js puro, sin proceso aparte.
- *  ✔  Sin costo — no requiere MongoDB Atlas ni un servidor gestionado.
- *  ✔  Sin red — los datos viven en archivos .db locales dentro del proyecto;
- *      ideal para demostraciones y despliegues simples.
- *  ✔  API idéntica a MongoDB — las mismas queries ({$set}, {$inc}, find, sort)
- *      permiten migrar a MongoDB cambiando solo este archivo.
- *  ✔  Persistencia automática — autoload:true carga el archivo al iniciar y
- *      escribe cada cambio al disco de forma incremental (append-only log).
- *
- *  LIMITACIONES de NeDB (por qué NO usarlo en producción real):
- *  ✗  Sin soporte para aggregation pipeline de MongoDB.
- *  ✗  Rendimiento limitado para >100k documentos (archivo plano, no B-tree).
- *  ✗  Sin replicación ni sharding para alta disponibilidad.
- *  ✗  corruptAlertThreshold:0 → falla estricta ante cualquier línea corrupta,
- *     lo que en producción sería demasiado agresivo (pero aquí nos avisa rápido).
- *
- *  PLAN DE MIGRACIÓN (si el proyecto escala):
- *  1. Instalar mongoose.
- *  2. Reemplazar este archivo con modelos Mongoose equivalentes.
- *  3. Los controladores NO cambian porque ya usan la misma API.
- *
- * ─────────────────────────────────────────────────────────────────────────────
- * Colecciones del sistema:
- *   estudiantes.db  → Modelo ESTUDIANTE  (usuarios, puntos, badges, XP)
- *   retos.db        → Modelo RETO_LECTURA (preguntas y opciones de cada reto)
- *   partidas.db     → Modelo PARTIDA      (historial de juego de cada niño)
- *   misiones.db     → Modelo MISION       (misiones diarias asignadas por día)
- *   telemetria.db   → Modelo TELEMETRIA   (log de cada error cometido en tiempo real)
- * ─────────────────────────────────────────────────────────────────────────────
+ * Colecciones:
+ *   Estudiante  → usuarios, puntos, badges, XP
+ *   Reto        → preguntas y opciones de cada reto
+ *   Partida     → historial de juego de cada niño
+ *   Mision      → misiones diarias asignadas por día
+ *   Telemetria  → log de cada error cometido
  */
 
-const path   = require('path');
-const Datastore = require('@seald-io/nedb');
+const mongoose = require('mongoose');
 
-/** Ruta base donde se guardan todos los archivos .db en disco */
-const DB_DIR = path.join(__dirname, '../../database');
+// ─── Conexión a MongoDB Atlas ─────────────────────────────────────────────────
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/letramente';
 
-// ─── Crear colecciones ────────────────────────────────────────────────────────
-// Cada Datastore corresponde a una "colección" (como en MongoDB).
-// autoload:true hace que NeDB lea el archivo .db al arrancar el proceso,
-// sin necesidad de llamar manualmente a db.loadDatabase().
-const db = {
-  estudiantes: new Datastore({
-    filename:  path.join(DB_DIR, 'estudiantes.db'),
-    autoload:  true,
-    corruptAlertThreshold: 0, // 0 = rechazar cualquier línea corrupta (fail-fast en desarrollo)
-  }),
-  retos: new Datastore({
-    filename:  path.join(DB_DIR, 'retos.db'),
-    autoload:  true,
-    corruptAlertThreshold: 0,
-  }),
-  partidas: new Datastore({
-    filename:  path.join(DB_DIR, 'partidas.db'),
-    autoload:  true,
-    corruptAlertThreshold: 0,
-  }),
-  // ── NUEVO: Misiones diarias ───────────────────────────────────────────────
-  misiones: new Datastore({
-    filename:  path.join(DB_DIR, 'misiones.db'),
-    autoload:  true,
-    corruptAlertThreshold: 0,
-  }),
-  // ── NUEVO: Telemetría de errores ──────────────────────────────────────────
-  telemetria: new Datastore({
-    filename:  path.join(DB_DIR, 'telemetria.db'),
-    autoload:  true,
-    corruptAlertThreshold: 0,
-  }),
-};
+mongoose.connect(MONGODB_URI)
+  .then(() => console.log('✅ MongoDB Atlas conectado'))
+  .catch(err => console.error('❌ Error MongoDB:', err.message));
 
-// ─── Índices para búsqueda rápida ────────────────────────────────────────────
-// NeDB usa índices tipo B-tree en memoria. Sin índice, cada búsqueda hace
-// un full-scan del archivo en disco (O(n)). Con índice es O(log n).
+// ─── Schemas ──────────────────────────────────────────────────────────────────
+const { Schema } = mongoose;
 
-/**
- * Índice ÚNICO en `username`.
- * WHY: el username es el identificador de login; debe ser único para evitar
- * colisiones. NeDB lanzará `uniqueViolated` si se intenta insertar duplicados,
- * lo que el auth controller captura y convierte en HTTP 409.
- */
-db.estudiantes.ensureIndex({ fieldName: 'username', unique: true });
-
-/**
- * Índice en `categoria` (retos).
- * WHY: la pantalla de selección de retos filtra por categoría ('Vocales',
- * 'Sílabas', 'Palabras'). Sin este índice, cada filtro escanearía todos
- * los retos en disco.
- */
-db.retos.ensureIndex({ fieldName: 'categoria' });
-
-/**
- * Índice en `estudiante_id` (partidas).
- * WHY: la consulta más frecuente es "dame todas las partidas de este niño".
- * Sin índice, escalar a miles de partidas sería muy lento.
- */
-db.partidas.ensureIndex({ fieldName: 'estudiante_id' });
-
-/**
- * Índice en `reto_id` (partidas).
- * WHY: permite calcular "cuántas veces se jugó este reto" eficientemente,
- * útil para estadísticas de popularidad de retos.
- */
-db.partidas.ensureIndex({ fieldName: 'reto_id' });
-
-/**
- * Índice en `estudiante_id` (misiones).
- * WHY: getMisionesHoy filtra { estudiante_id, fecha_asignada }; este índice
- * reduce el espacio de búsqueda al subconjunto del estudiante.
- */
-db.misiones.ensureIndex({ fieldName: 'estudiante_id' });
-
-/**
- * Índice en `fecha_asignada` (misiones).
- * WHY: el sistema de reset diario consulta misiones por fecha (YYYY-MM-DD).
- * El índice hace que la verificación "¿ya hay misiones para hoy?" sea O(log n)
- * en vez de escanear todas las misiones históricas.
- */
-db.misiones.ensureIndex({ fieldName: 'fecha_asignada' });
-
-/**
- * Índice en `estudiante_id` (telemetría).
- * WHY: el dashboard de padres/docentes carga TODOS los errores de un estudiante.
- * Sin índice, esto escanearía los errores de todos los estudiantes del sistema.
- */
-db.telemetria.ensureIndex({ fieldName: 'estudiante_id' });
-
-/**
- * Índice en `par_confusion` (telemetría).
- * WHY: `par_confusion` es la clave normalizada (ej: 'B-D') que representa
- * un par de letras confundidas. Un futuro análisis global ("¿qué pares son
- * más problemáticos en toda la plataforma?") puede aprovechar este índice
- * sin tocar el índice de estudiante.
- */
-db.telemetria.ensureIndex({ fieldName: 'par_confusion' });
-
-// ─── Helper: promisificar operaciones de NeDB ─────────────────────────────────
-// WHY: NeDB usa callbacks al estilo Node.js clásico (error-first callback).
-// Los controladores usan async/await, que requiere Promises.
-// En lugar de llamar util.promisify() función por función, envolvemos toda
-// la API de un Datastore en un objeto con métodos que devuelven Promise.
-// Esto nos da una capa de abstracción que:
-//   1. Hace los controladores más legibles (sin callback hell).
-//   2. Facilita el manejo de errores con try/catch.
-//   3. Permite cambiar la implementación subyacente (ej: MongoDB) sin tocar
-//      ningún controlador.
-const promisify = (store) => ({
-
-  /** Devuelve el primer documento que coincide con `query`, o null. */
-  findOne: (query) => new Promise((res, rej) =>
-    store.findOne(query, (err, doc) => err ? rej(err) : res(doc))),
-
-  /**
-   * Devuelve todos los documentos que coinciden con `query`,
-   * ordenados según `sort` (e.g. { timestamp: -1 } para más recientes primero).
-   */
-  find: (query = {}, sort = {}) => new Promise((res, rej) =>
-    store.find(query).sort(sort).exec((err, docs) => err ? rej(err) : res(docs))),
-
-  /** Inserta un nuevo documento y devuelve el documento insertado (con _id generado). */
-  insert: (doc) => new Promise((res, rej) =>
-    store.insert(doc, (err, newDoc) => err ? rej(err) : res(newDoc))),
-
-  /**
-   * Actualiza documentos que coinciden con `query` usando operadores MongoDB
-   * ($set, $inc, etc.). returnUpdatedDocs:true devuelve el documento resultante,
-   * no solo el conteo de filas afectadas.
-   */
-  update: (query, update, opts = {}) => new Promise((res, rej) =>
-    store.update(query, update, { ...opts, returnUpdatedDocs: true },
-      (err, _, doc) => err ? rej(err) : res(doc))),
-
-  /**
-   * Elimina documentos. Por defecto solo el primero; pasar { multi: true }
-   * para borrar todos los que coincidan (necesario en el reset de misiones).
-   */
-  remove: (query, opts = {}) => new Promise((res, rej) =>
-    store.remove(query, opts, (err, n) => err ? rej(err) : res(n))),
-
-  /** Cuenta documentos que coinciden con `query`. Útil para estadísticas. */
-  count: (query = {}) => new Promise((res, rej) =>
-    store.count(query, (err, n) => err ? rej(err) : res(n))),
+const EstudianteSchema = new Schema({
+  nombre:          { type: String, required: true },
+  username:        { type: String, required: true, unique: true, lowercase: true },
+  password_hash:   { type: String, required: true },
+  rol:             { type: String, enum: ['child', 'adult'], default: 'child' },
+  avatar:          { type: String, default: 'dino' },
+  puntos_globales: { type: Number, default: 0 },
+  experiencia:     { type: Number, default: 0 },
+  badges:          { type: Array,  default: [] },
+  fecha_creacion:  { type: Date,   default: Date.now },
 });
 
-// ─── Exportar colecciones promisificadas ──────────────────────────────────────
-// Los nombres en PascalCase (Estudiante, Reto...) siguen la convención de
-// modelos de Mongoose, facilitando una futura migración.
-// `raw` expone los Datastores originales para operaciones avanzadas que no
-// estén cubiertas por el helper (e.g. cursores paginados con .skip().limit()).
-module.exports = {
-  Estudiante: promisify(db.estudiantes),
-  Reto:       promisify(db.retos),
-  Partida:    promisify(db.partidas),
-  Mision:     promisify(db.misiones),
-  Telemetria: promisify(db.telemetria),
-  raw:        db,
-};
+const RetoSchema = new Schema({
+  titulo:            String,
+  categoria:         { type: String, index: true },
+  tipoReto:          { type: String, default: 'letra' },
+  dificultad:        { type: Number, default: 1 },
+  puntos_base:       { type: Number, default: 10 },
+  instruccion:       String,
+  emoji:             String,
+  imagenUrl:         String,
+  activo:            { type: Boolean, default: true },
+  palabraClave:      String,
+  palabraConHueco:   String,
+  respuestaCorrecta: String,
+  opciones:          Array,
+  silabas:           Array,
+  fecha_creacion:    { type: Date, default: Date.now },
+});
 
-console.log('📦 Base de datos NeDB lista (sin servidores, sin pago)');
-console.log(`   📂 Datos en: ${DB_DIR}`);
+const PartidaSchema = new Schema({
+  estudiante_id:    { type: String, index: true },
+  reto_id:          { type: String, index: true },
+  estado:           { type: Boolean, default: true },
+  estrellas:        { type: Number, default: 0 },
+  errores_cometidos:{ type: Number, default: 0 },
+  puntos_ganados:   { type: Number, default: 0 },
+  tiempo_segundos:  { type: Number, default: 0 },
+  completado_en:    { type: Date,   default: Date.now },
+});
+
+const MisionSchema = new Schema({
+  estudiante_id:  { type: String, index: true },
+  fecha_asignada: { type: String, index: true },
+  slug:           String,
+  titulo:         String,
+  descripcion:    String,
+  categoria:      String,
+  meta:           Number,
+  progreso:       { type: Number, default: 0 },
+  completada:     { type: Boolean, default: false },
+  xp_reward:      Number,
+  xp_otorgada:    { type: Boolean, default: false },
+  emoji:          String,
+  creada_en:      { type: Date, default: Date.now },
+});
+
+const TelemetriaSchema = new Schema({
+  estudiante_id:   { type: String, index: true },
+  reto_id:         String,
+  categoria:       String,
+  opcion_elegida:  String,
+  opcion_correcta: String,
+  par_confusion:   { type: String, index: true },
+  palabraClave:    String,
+  tiempo_respuesta:Number,
+  timestamp:       { type: Date, default: Date.now },
+});
+
+// ─── Modelos ──────────────────────────────────────────────────────────────────
+const EstudianteModel = mongoose.model('Estudiante', EstudianteSchema);
+const RetoModel       = mongoose.model('Reto',       RetoSchema);
+const PartidaModel    = mongoose.model('Partida',    PartidaSchema);
+const MisionModel     = mongoose.model('Mision',     MisionSchema);
+const TelemetriaModel = mongoose.model('Telemetria', TelemetriaSchema);
+
+// ─── Adaptador: misma API que NeDB ───────────────────────────────────────────
+// Los controladores usan findOne/find/insert/update/remove/count
+// Esta capa traduce esas llamadas a Mongoose sin tocar ningún controlador.
+const adapt = (Model) => ({
+
+  findOne: (query) =>
+    Model.findOne(query).lean(),
+
+  find: (query = {}, sort = {}) =>
+    Model.find(query).sort(sort).lean(),
+
+  insert: async (doc) => {
+    const created = await Model.create(doc);
+    // Devolver como objeto plano con _id como string (igual que NeDB)
+    const plain = created.toObject();
+    plain._id = plain._id.toString();
+    return plain;
+  },
+
+  update: async (query, update, opts = {}) => {
+    if (opts.multi) {
+      await Model.updateMany(query, update);
+      return null;
+    }
+    const doc = await Model.findOneAndUpdate(query, update, { new: true }).lean();
+    return doc;
+  },
+
+  remove: async (query, opts = {}) => {
+    if (opts.multi) {
+      const res = await Model.deleteMany(query);
+      return res.deletedCount;
+    }
+    const res = await Model.deleteOne(query);
+    return res.deletedCount;
+  },
+
+  count: (query = {}) =>
+    Model.countDocuments(query),
+});
+
+// ─── Exportar con la misma interfaz que la versión NeDB ───────────────────────
+module.exports = {
+  Estudiante: adapt(EstudianteModel),
+  Reto:       adapt(RetoModel),
+  Partida:    adapt(PartidaModel),
+  Mision:     adapt(MisionModel),
+  Telemetria: adapt(TelemetriaModel),
+};
