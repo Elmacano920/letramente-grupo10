@@ -192,7 +192,7 @@ const LoginPage = () => {
                   <input
                     id="name-input" name="name" type="text" required
                     className="input-letramente"
-                    placeholder={role === 'child' ? '¿Cómo te llamas?' : 'Tu nombre'}
+                    placeholder="Tu nombre completo"
                     value={form.name} onChange={handleChange}
                   />
                 </div>
@@ -206,7 +206,7 @@ const LoginPage = () => {
                   id="username-input" name="username" type="text"
                   required autoComplete="username"
                   className="input-letramente"
-                  placeholder={role === 'child' ? '¡Tu nombre especial! 🌟' : 'nombre.usuario'}
+                  placeholder="Ej: juan.perez"
                   value={form.username} onChange={handleChange}
                 />
               </div>
@@ -219,7 +219,7 @@ const LoginPage = () => {
                   id="password-input" name="password" type="password"
                   required autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                   className="input-letramente"
-                  placeholder={role === 'child' ? 'Tu clave secreta 🔒' : 'Contraseña segura'}
+                  placeholder="Tu contraseña segura"
                   value={form.password} onChange={handleChange}
                 />
               </div>
