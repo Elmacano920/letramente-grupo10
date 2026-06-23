@@ -1,13 +1,13 @@
-﻿[build]
-  base    = "frontend"
-  command = "npm run build"
-  publish = "dist"
+[build]
+  base = 'frontend'
+  command = 'npm run build'
+  publish = 'dist'
 
 [build.environment]
-  CI = "false"
-  NODE_VERSION = "20"
+  CI = 'false'
+  NODE_VERSION = '20'
 
 [[redirects]]
-  from   = "/*"
-  to     = "/index.html"
+  from = '/*'
+  to = '/index.html'
   status = 200
