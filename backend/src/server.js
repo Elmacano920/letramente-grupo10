@@ -41,8 +41,9 @@ const authRoutes        = require('./routes/auth.routes');
 const retosRoutes       = require('./routes/retos.routes');
 const partidasRoutes    = require('./routes/partidas.routes');
 const estudiantesRoutes = require('./routes/estudiantes.routes');
-const misionesRoutes    = require('./routes/misiones.routes');   // ← NUEVO
-const telemetriaRoutes  = require('./routes/telemetria.routes'); // ← NUEVO
+const misionesRoutes    = require('./routes/misiones.routes');
+const telemetriaRoutes  = require('./routes/telemetria.routes');
+const ninosRoutes       = require('./routes/ninos.routes');  // ← v3.0
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -81,8 +82,9 @@ app.use('/api/auth',        authRoutes);
 app.use('/api/retos',       retosRoutes);
 app.use('/api/partidas',    partidasRoutes);
 app.use('/api/estudiantes', estudiantesRoutes);
-app.use('/api/misiones',    misionesRoutes);   // ← NUEVO
-app.use('/api/telemetria',  telemetriaRoutes); // ← NUEVO
+app.use('/api/misiones',    misionesRoutes);
+app.use('/api/telemetria',  telemetriaRoutes);
+app.use('/api/ninos',       ninosRoutes);   // ← v3.0 gestion de ninos por tutor
 
 // ─── Ruta de Salud ────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {

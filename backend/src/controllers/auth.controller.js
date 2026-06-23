@@ -63,7 +63,15 @@ const generateToken = (id) =>
  */
 const register = async (req, res) => {
   try {
-    const { nombre, username, password, rol = 'child', avatar = 'dino' } = req.body;
+    const { nombre, username, password, rol = 'adult', avatar = 'dino' } = req.body;
+
+    // v3.0: el registro publico es EXCLUSIVAMENTE para adultos.
+    // Los perfiles de ninos los crea el adulto desde su panel (POST /api/ninos).
+    if (rol === 'child')
+      return res.status(403).json({
+        success: false,
+        error: 'Los perfiles de ninos los crea tu maestro o padre desde su panel. Pide que te agreguen.'
+      });
 
     // Validación básica: rechazar antes de tocar la BD para economizar recursos
     if (!nombre || !username || !password)
@@ -193,4 +201,6 @@ const getMe = async (req, res) => {
   }
 };
 
-module.exports = { register, login, getMe };
+// loginPin se maneja en ninos.controller pero la ruta se registra en auth.routes
+const { loginPin } = require('./ninos.controller');
+module.exports = { register, login, getMe, loginPin };

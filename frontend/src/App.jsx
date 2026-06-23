@@ -18,6 +18,7 @@ const ChildDashboard = lazy(() => import('./pages/child/ChildDashboard'));
 const RetosView      = lazy(() => import('./pages/child/RetosView'));
 const PhonicsModule  = lazy(() => import('./pages/child/PhonicsModule'));
 const AdultDashboard = lazy(() => import('./pages/adult/AdultDashboard'));
+const SeleccionPerfil = lazy(() => import('./pages/SeleccionPerfil'));
 
 // ─── Pantalla de Carga ────────────────────────────────────────────────────────
 const LoadingScreen = () => (
@@ -78,8 +79,9 @@ const AppRouter = () => (
       {/* Inicio */}
       <Route path="/" element={<HomeRedirect />} />
 
-      {/* Autenticación */}
-      <Route path="/login" element={<LoginPage />} />
+      {/* Autenticacion */}
+      <Route path="/login"        element={<LoginPage />} />
+      <Route path="/seleccionar"  element={<SeleccionPerfil />} />
 
       {/* ── Panel del Niño ── */}
       <Route path="/juego"               element={<ChildRoute><ChildDashboard /></ChildRoute>} />

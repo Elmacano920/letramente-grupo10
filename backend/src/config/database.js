@@ -1,36 +1,29 @@
-/**
+﻿/**
  * Letramente — Base de Datos con MongoDB Atlas + Mongoose
  * Grupo 10 | Aprende, Comprende, Crea
  *
- * Migración de NeDB → MongoDB Atlas para persistencia real en producción.
- * La API exportada es IDÉNTICA a la versión NeDB: los controladores no cambian.
- *
- * Colecciones:
- *   Estudiante  → usuarios, puntos, badges, XP
- *   Reto        → preguntas y opciones de cada reto
- *   Partida     → historial de juego de cada niño
- *   Mision      → misiones diarias asignadas por día
- *   Telemetria  → log de cada error cometido
+ * v3.0 — Relacion Adulto <-> Ninos:
+ *   - Solo adultos se registran externamente.
+ *   - Adultos crean perfiles de ninos desde su panel.
+ *   - Los ninos acceden con PIN de 4 digitos (pin_hash).
  */
 
 const mongoose = require('mongoose');
-
-// ─── Conexión a MongoDB Atlas ─────────────────────────────────────────────────
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/letramente';
-
 mongoose.connect(MONGODB_URI)
   .then(() => console.log('✅ MongoDB Atlas conectado'))
   .catch(err => console.error('❌ Error MongoDB:', err.message));
 
-// ─── Schemas ──────────────────────────────────────────────────────────────────
 const { Schema } = mongoose;
 
 const EstudianteSchema = new Schema({
   nombre:          { type: String, required: true },
   username:        { type: String, required: true, unique: true, lowercase: true },
   password_hash:   { type: String, required: true },
-  rol:             { type: String, enum: ['child', 'adult'], default: 'child' },
+  pin_hash:        { type: String, default: null },
+  rol:             { type: String, enum: ['child', 'adult'], default: 'adult' },
   avatar:          { type: String, default: 'dino' },
+  tutor_id:        { type: String, default: null, index: true },
   puntos_globales: { type: Number, default: 0 },
   experiencia:     { type: Number, default: 0 },
   badges:          { type: Array,  default: [] },
@@ -56,14 +49,14 @@ const RetoSchema = new Schema({
 });
 
 const PartidaSchema = new Schema({
-  estudiante_id:    { type: String, index: true },
-  reto_id:          { type: String, index: true },
-  estado:           { type: Boolean, default: true },
-  estrellas:        { type: Number, default: 0 },
-  errores_cometidos:{ type: Number, default: 0 },
-  puntos_ganados:   { type: Number, default: 0 },
-  tiempo_segundos:  { type: Number, default: 0 },
-  completado_en:    { type: Date,   default: Date.now },
+  estudiante_id:     { type: String, index: true },
+  reto_id:           { type: String, index: true },
+  estado:            { type: Boolean, default: true },
+  estrellas:         { type: Number, default: 0 },
+  errores_cometidos: { type: Number, default: 0 },
+  puntos_ganados:    { type: Number, default: 0 },
+  tiempo_segundos:   { type: Number, default: 0 },
+  completado_en:     { type: Date,   default: Date.now },
 });
 
 const MisionSchema = new Schema({
@@ -94,16 +87,12 @@ const TelemetriaSchema = new Schema({
   timestamp:       { type: Date, default: Date.now },
 });
 
-// ─── Modelos ──────────────────────────────────────────────────────────────────
 const EstudianteModel = mongoose.model('Estudiante', EstudianteSchema);
 const RetoModel       = mongoose.model('Reto',       RetoSchema);
 const PartidaModel    = mongoose.model('Partida',    PartidaSchema);
 const MisionModel     = mongoose.model('Mision',     MisionSchema);
 const TelemetriaModel = mongoose.model('Telemetria', TelemetriaSchema);
 
-// ─── Adaptador: misma API que NeDB ───────────────────────────────────────────
-// Los controladores usan findOne/find/insert/update/remove/count
-// Esta capa traduce esas llamadas a Mongoose sin tocar ningún controlador.
 const toPlain = (doc) => {
   if (!doc) return null;
   const obj = typeof doc.toObject === 'function' ? doc.toObject() : { ...doc };
@@ -112,49 +101,37 @@ const toPlain = (doc) => {
 };
 
 const adapt = (Model) => ({
-
   findOne: async (query) => {
     const doc = await Model.findOne(query).lean();
     return toPlain(doc);
   },
-
   find: async (query = {}, sort = {}) => {
     const docs = await Model.find(query).sort(sort).lean();
     return docs.map(toPlain);
   },
-
   insert: async (doc) => {
     const created = await Model.create(doc);
     return toPlain(created);
   },
-
   update: async (query, update, opts = {}) => {
-    if (opts.multi) {
-      await Model.updateMany(query, update);
-      return null;
-    }
+    if (opts.multi) { await Model.updateMany(query, update); return null; }
     const doc = await Model.findOneAndUpdate(query, update, { new: true }).lean();
     return toPlain(doc);
   },
-
   remove: async (query, opts = {}) => {
-    if (opts.multi) {
-      const res = await Model.deleteMany(query);
-      return res.deletedCount;
-    }
+    if (opts.multi) { const res = await Model.deleteMany(query); return res.deletedCount; }
     const res = await Model.deleteOne(query);
     return res.deletedCount;
   },
-
-  count: (query = {}) =>
-    Model.countDocuments(query),
+  count: (query = {}) => Model.countDocuments(query),
 });
 
-// ─── Exportar con la misma interfaz que la versión NeDB ───────────────────────
 module.exports = {
-  Estudiante: adapt(EstudianteModel),
-  Reto:       adapt(RetoModel),
-  Partida:    adapt(PartidaModel),
-  Mision:     adapt(MisionModel),
-  Telemetria: adapt(TelemetriaModel),
+  Estudiante:      adapt(EstudianteModel),
+  Reto:            adapt(RetoModel),
+  Partida:         adapt(PartidaModel),
+  Mision:          adapt(MisionModel),
+  Telemetria:      adapt(TelemetriaModel),
+  EstudianteModel,
+  RetoModel,
 };

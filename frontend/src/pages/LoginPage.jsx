@@ -24,7 +24,6 @@ const LoginPage = () => {
   const { login, register, error } = useAuth();
 
   const [mode, setMode]     = useState('login');
-  const [role, setRole]     = useState('child');
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState('dino');
@@ -50,11 +49,12 @@ const LoginPage = () => {
           setLoading(false);
           return;
         }
+        // v3.0: registro exclusivo para adultos
         const res = await register({
           nombre: form.name, username: form.username,
-          password: form.password, rol: role, avatar: selectedAvatar,
+          password: form.password, rol: 'adult', avatar: selectedAvatar,
         });
-        if (res.success) navigate(res.role === 'child' ? '/juego' : '/adulto', { replace: true });
+        if (res.success) navigate('/adulto', { replace: true });
         else setLocalError(res.error || 'Error al crear la cuenta');
       }
     } finally { setLoading(false); }
@@ -166,31 +166,21 @@ const LoginPage = () => {
               onSubmit={handleSubmit}
               className="flex flex-col gap-4"
             >
-              {/* Selector de rol */}
+              {/* Selector de rol ELIMINADO — solo adultos se registran */}
+              {/* Los ninos los crea el adulto desde su panel */}
               {mode === 'register' && (
-                <div>
-                  <p className="text-xs font-bold text-white/50 uppercase tracking-wider mb-2">Soy...</p>
-                  <div className="flex gap-2">
-                    {[
-                      { id: 'child', label: '👦 Estudiante', desc: 'Quiero aprender' },
-                      { id: 'adult', label: '👩‍🏫 Adulto',     desc: 'Maestro / Padre' },
-                    ].map(r => (
-                      <button
-                        key={r.id} type="button" id={`role-${r.id}`}
-                        onClick={() => setRole(r.id)}
-                        className={`
-                          flex-1 py-3 px-3 rounded-2xl border-2 cursor-pointer
-                          font-brand font-bold text-sm text-center transition-all
-                          ${role === r.id
-                            ? 'border-letra-cyan bg-letra-cyan/15 text-letra-cyan-light'
-                            : 'border-white/10 bg-transparent text-white/50 hover:border-white/25'}
-                        `}
-                      >
-                        <div>{r.label}</div>
-                        <div className="text-xs opacity-70 mt-0.5">{r.desc}</div>
-                      </button>
-                    ))}
-                  </div>
+                <div style={{
+                  padding:      '0.75rem 1rem',
+                  borderRadius: '1rem',
+                  background:   'rgba(6,182,212,0.08)',
+                  border:       '1px solid rgba(6,182,212,0.2)',
+                  fontSize:     '0.8rem',
+                  color:        'rgba(255,255,255,0.55)',
+                  fontWeight:   600,
+                  lineHeight:   1.5,
+                }}>
+                  👩‍🏫 <strong style={{ color:'#06b6d4' }}>Este registro es para Maestros y Padres.</strong><br />
+                  Los perfiles de ninos se crean desde el Panel de Control del adulto.
                 </div>
               )}
 
@@ -249,11 +239,11 @@ const LoginPage = () => {
                 </div>
               )}
 
-              {/* Avatar picker */}
-              {mode === 'register' && role === 'child' && (
+              {/* Avatar picker — solo para adultos en registro */}
+              {mode === 'register' && (
                 <div>
                   <label className="text-xs font-bold text-white/50 uppercase tracking-wider block mb-2">
-                    Elige tu personaje
+                    Tu avatar
                   </label>
                   <div className="flex gap-2 flex-wrap">
                     {AVATARS.map(av => (

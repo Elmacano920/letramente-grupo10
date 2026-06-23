@@ -112,6 +112,24 @@ export const AuthProvider = ({ children }) => {
     setError(null);
   }, []);
 
+  // ─── Login PIN (ninos) ────────────────────────────────────────────────────
+  // child_id: el _id del perfil del nino
+  // pin: string de 4 digitos
+  const loginPin = useCallback(async (child_id, pin) => {
+    setError(null);
+    try {
+      const res = await API.post('/auth/login-pin', { child_id, pin });
+      const { user: userData, token } = res.data;
+      localStorage.setItem(TOKEN_KEY, token);
+      setUser(userData);
+      return { success: true, role: userData.rol };
+    } catch (err) {
+      const message = err.response?.data?.error || err.message || 'PIN incorrecto';
+      setError(message);
+      return { success: false, error: message };
+    }
+  }, []);
+
   // ─── Actualizar usuario localmente ────────────────────────────────────────
   const updateUser = useCallback((updates) => {
     setUser(prev => ({ ...prev, ...updates }));
@@ -122,9 +140,10 @@ export const AuthProvider = ({ children }) => {
     loading,
     error,
     isAuthenticated: !!user,
-    isChild: user?.rol === 'child',   // backend usa 'rol'
+    isChild: user?.rol === 'child',
     isAdult: user?.rol === 'adult',
     login,
+    loginPin,
     register,
     logout,
     updateUser,

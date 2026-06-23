@@ -10,9 +10,17 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
 import { usersService, progressService } from '../../services/api';
 import ProgressBar from '../../components/ui/ProgressBar';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+
+const getAuthHeaders = () => ({
+  'Content-Type': 'application/json',
+  Authorization: `Bearer ${localStorage.getItem('letramente_token')}`,
+});
 
 const AVATAR_EMOJIS = {
   dino: '🦕', cat: '🐱', robot: '🤖',
@@ -34,15 +42,24 @@ const MODULE_ICONS = {
 const AdultDashboard = () => {
   const { user, logout } = useAuth();
 
-  const [students, setStudents]           = useState([]);
-  const [selectedStudent, setSelectedStudent] = useState(null);
-  const [studentProgress, setStudentProgress] = useState(null);
-  const [loadingStudents, setLoadingStudents] = useState(true);
-  const [loadingProgress, setLoadingProgress] = useState(false);
-  const [activeTab, setActiveTab]         = useState('students'); // 'students' | 'leaderboard'
-  const [leaderboard, setLeaderboard]     = useState([]);
+  const [students, setStudents]               = useState([]);
+  const [selectedStudent, setSelectedStudent]   = useState(null);
+  const [studentProgress, setStudentProgress]   = useState(null);
+  const [loadingStudents, setLoadingStudents]   = useState(true);
+  const [loadingProgress, setLoadingProgress]   = useState(false);
+  const [activeTab, setActiveTab]               = useState('students');
+  const [leaderboard, setLeaderboard]           = useState([]);
 
-  // Cargar estudiantes y leaderboard
+  // Gestion de ninos (v3.0)
+  const [ninos,         setNinos]         = useState([]);
+  const [loadingNinos,  setLoadingNinos]  = useState(false);
+  const [showModal,     setShowModal]     = useState(false);
+  const [ninoForm,      setNinoForm]      = useState({ nombre:'', avatar:'dino', pin:'' });
+  const [ninoError,     setNinoError]     = useState('');
+  const [ninoLoading,   setNinoLoading]   = useState(false);
+  const [linkCopied,    setLinkCopied]    = useState(false);
+
+  // Cargar estudiantes, leaderboard y ninos
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -54,20 +71,66 @@ const AdultDashboard = () => {
         setLeaderboard(leaderRes.data?.leaderboard || []);
       } catch (err) {
         console.error('Error cargando datos:', err);
-        // Demo data si no hay backend
-        setStudents([
-          { id: 1, name: 'Ana García',    avatar: 'cat',   points: 150, level: 2 },
-          { id: 2, name: 'Carlos López',  avatar: 'dino',  points: 85,  level: 1 },
-          { id: 3, name: 'Sofía Méndez',  avatar: 'bunny', points: 220, level: 3 },
-          { id: 4, name: 'Diego Torres',  avatar: 'robot', points: 60,  level: 1 },
-          { id: 5, name: 'Valentina Ruiz', avatar: 'owl',  points: 180, level: 2 },
-        ]);
+        setStudents([]);
       } finally {
         setLoadingStudents(false);
       }
     };
     loadData();
+    fetchNinos();
   }, []);
+
+  // Cargar ninos del tutor (v3.0)
+  const fetchNinos = async () => {
+    setLoadingNinos(true);
+    try {
+      const res = await fetch(`${API_BASE}/ninos`, { headers: getAuthHeaders() });
+      const data = await res.json();
+      if (data.success) setNinos(data.ninos || []);
+    } catch {}
+    finally { setLoadingNinos(false); }
+  };
+
+  // Crear nino
+  const handleCrearNino = async (e) => {
+    e.preventDefault();
+    setNinoError('');
+    if (!/^\d{4}$/.test(ninoForm.pin))
+      return setNinoError('El PIN debe ser exactamente 4 digitos (0-9)');
+    setNinoLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/ninos`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(ninoForm),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowModal(false);
+        setNinoForm({ nombre:'', avatar:'dino', pin:'' });
+        fetchNinos();
+      } else {
+        setNinoError(data.error || 'Error al crear el perfil');
+      }
+    } catch { setNinoError('Error de red'); }
+    finally { setNinoLoading(false); }
+  };
+
+  // Eliminar nino
+  const handleEliminarNino = async (id) => {
+    if (!confirm('¿Eliminar este perfil? Se perderan sus datos.')) return;
+    await fetch(`${API_BASE}/ninos/${id}`, { method:'DELETE', headers: getAuthHeaders() });
+    fetchNinos();
+  };
+
+  // Copiar enlace de seleccion al portapapeles
+  const copiarEnlace = () => {
+    const url = `${window.location.origin}/seleccionar?tutor=${user?._id || user?.id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    });
+  };
 
   // Cargar progreso detallado de un estudiante
   const loadStudentProgress = async (student) => {
@@ -121,8 +184,8 @@ const AdultDashboard = () => {
             <div style={{ fontWeight: 900, fontSize: '1.2rem' }}>
               <span className="brand-gradient-static">Letramente</span>
             </div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-              Panel de Control — Grupo 10
+            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
+              Panel de Control
             </div>
           </div>
         </div>
@@ -176,10 +239,13 @@ const AdultDashboard = () => {
               padding: '4px',
               marginBottom: '1rem',
               width: 'fit-content',
+              flexWrap: 'wrap',
+              gap: '2px',
             }}>
               {[
                 { id: 'students',    label: '👦 Estudiantes' },
                 { id: 'leaderboard', label: '🏆 Ranking' },
+                { id: 'mis-ninos',   label: '➕ Mis Niños' },
               ].map(t => (
                 <button
                   key={t.id}
@@ -309,6 +375,85 @@ const AdultDashboard = () => {
                 ))}
               </div>
             )}
+
+            {/* Tab Mis Ninos (v3.0) */}
+            {activeTab === 'mis-ninos' && (
+              <div style={{ display:'flex', flexDirection:'column', gap:'1rem' }}>
+                {/* Enlace de acceso para ninos */}
+                <div style={{
+                  padding:'1rem', borderRadius:'1.25rem',
+                  background:'rgba(6,182,212,0.08)', border:'1px solid rgba(6,182,212,0.2)',
+                }}>
+                  <p style={{ fontFamily:'var(--font-adult)', fontWeight:700, fontSize:'0.85rem', marginBottom:'0.5rem', color:'#06b6d4' }}>
+                    🔗 Enlace de acceso para tus niños
+                  </p>
+                  <p style={{ fontSize:'0.78rem', color:'rgba(255,255,255,0.5)', marginBottom:'0.75rem', lineHeight:1.5 }}>
+                    Comparte este enlace con tus niños. Ellos verán sus avatares y entrarán con su PIN.
+                  </p>
+                  <button
+                    onClick={copiarEnlace}
+                    style={{
+                      padding:'0.5rem 1.25rem', borderRadius:'0.75rem',
+                      background: linkCopied ? 'rgba(46,184,126,0.2)' : 'rgba(6,182,212,0.15)',
+                      border: `1px solid ${linkCopied ? '#2eb87e' : 'rgba(6,182,212,0.4)'}`,
+                      color: linkCopied ? '#5ed4a4' : '#06b6d4',
+                      fontFamily:'var(--font-adult)', fontWeight:700, fontSize:'0.85rem', cursor:'pointer',
+                    }}
+                  >
+                    {linkCopied ? '✅ Copiado!' : '📋 Copiar enlace'}
+                  </button>
+                </div>
+
+                {/* Boton agregar */}
+                <button
+                  id="add-nino-btn"
+                  onClick={() => setShowModal(true)}
+                  style={{
+                    padding:'0.75rem 1.5rem', borderRadius:'1rem',
+                    background:'linear-gradient(135deg,#2eb87e,#06b6d4)',
+                    border:'none', color:'white', fontFamily:'var(--font-adult)',
+                    fontWeight:700, fontSize:'0.95rem', cursor:'pointer',
+                    alignSelf:'flex-start',
+                  }}
+                >
+                  ➕ Agregar niño
+                </button>
+
+                {/* Lista de ninos */}
+                {loadingNinos ? (
+                  <p style={{ color:'rgba(255,255,255,0.4)', fontFamily:'var(--font-adult)' }}>Cargando...</p>
+                ) : ninos.length === 0 ? (
+                  <div className="card" style={{ textAlign:'center', padding:'2rem' }}>
+                    <div style={{ fontSize:'2.5rem', marginBottom:'0.5rem' }}>👶</div>
+                    <p style={{ color:'var(--text-muted)' }}>Aún no tienes niños registrados.</p>
+                  </div>
+                ) : ninos.map(nino => (
+                  <div key={nino._id} style={{
+                    display:'flex', alignItems:'center', gap:'1rem',
+                    padding:'0.875rem 1.25rem', borderRadius:'1.25rem',
+                    background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)',
+                  }}>
+                    <div style={{ fontSize:'2.2rem' }}>{AVATAR_EMOJIS[nino.avatar] || '🦕'}</div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontWeight:700, color:'var(--text-primary)' }}>{nino.nombre}</div>
+                      <div style={{ fontSize:'0.78rem', color:'var(--text-muted)' }}>
+                        {nino.puntos_globales || 0} pts · Nivel {Math.ceil((nino.experiencia||0)/100) || 1}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleEliminarNino(nino._id)}
+                      style={{
+                        padding:'0.4rem 0.9rem', borderRadius:'0.75rem',
+                        background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.3)',
+                        color:'#fca5a5', fontFamily:'var(--font-adult)', fontSize:'0.8rem', cursor:'pointer',
+                      }}
+                    >
+                      🗑️ Eliminar
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* ─── Panel derecho: Detalle de Estudiante ─────────── */}
@@ -408,6 +553,126 @@ const AdultDashboard = () => {
           )}
         </div>
       </div>
+
+      {/* ─── Modal crear nino (v3.0) ─────────────────────────── */}
+      <AnimatePresence>
+        {showModal && (
+          <motion.div
+            initial={{ opacity:0 }}
+            animate={{ opacity:1 }}
+            exit={{ opacity:0 }}
+            style={{
+              position:'fixed', inset:0, zIndex:9999,
+              display:'flex', alignItems:'center', justifyContent:'center',
+              background:'rgba(0,0,0,0.7)', backdropFilter:'blur(8px)',
+              padding:'1rem',
+            }}
+            onClick={() => setShowModal(false)}
+          >
+            <motion.form
+              initial={{ scale:0.85, y:20 }}
+              animate={{ scale:1,    y:0 }}
+              exit={{ scale:0.85, y:20 }}
+              onSubmit={handleCrearNino}
+              onClick={e => e.stopPropagation()}
+              style={{
+                background:'rgba(14,15,23,0.97)', border:'1px solid rgba(255,255,255,0.1)',
+                borderRadius:'2rem', padding:'2rem', width:'100%', maxWidth:'420px',
+                display:'flex', flexDirection:'column', gap:'1.25rem',
+              }}
+            >
+              <h3 style={{ fontFamily:'var(--font-adult)', fontWeight:900, margin:0, color:'white' }}>
+                \u2795 Agregar Ni\u00f1o
+              </h3>
+
+              {/* Nombre */}
+              <div>
+                <label style={{ display:'block', fontSize:'0.8rem', fontWeight:700, color:'rgba(255,255,255,0.5)', marginBottom:'0.4rem' }}>Nombre</label>
+                <input
+                  required
+                  value={ninoForm.nombre}
+                  onChange={e => setNinoForm(f=>({...f, nombre:e.target.value}))}
+                  placeholder="Nombre del ni\u00f1o"
+                  style={{
+                    width:'100%', padding:'0.75rem 1rem', borderRadius:'0.875rem',
+                    background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.15)',
+                    color:'white', fontFamily:'var(--font-adult)', fontSize:'0.95rem', boxSizing:'border-box',
+                  }}
+                />
+              </div>
+
+              {/* Avatar */}
+              <div>
+                <label style={{ display:'block', fontSize:'0.8rem', fontWeight:700, color:'rgba(255,255,255,0.5)', marginBottom:'0.5rem' }}>Avatar</label>
+                <div style={{ display:'flex', gap:'0.5rem', flexWrap:'wrap' }}>
+                  {Object.entries(AVATAR_EMOJIS).map(([id,emoji]) => (
+                    <button
+                      key={id} type="button"
+                      onClick={() => setNinoForm(f=>({...f, avatar:id}))}
+                      style={{
+                        width:'52px', height:'52px', borderRadius:'1rem',
+                        fontSize:'1.8rem', cursor:'pointer',
+                        background: ninoForm.avatar===id ? 'rgba(6,182,212,0.2)' : 'rgba(255,255,255,0.05)',
+                        border: `2px solid ${ninoForm.avatar===id ? '#06b6d4' : 'rgba(255,255,255,0.1)'}`,
+                      }}
+                    >{emoji}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* PIN */}
+              <div>
+                <label style={{ display:'block', fontSize:'0.8rem', fontWeight:700, color:'rgba(255,255,255,0.5)', marginBottom:'0.4rem' }}>PIN de 4 d\u00edgitos</label>
+                <input
+                  required
+                  type="password"
+                  maxLength={4}
+                  value={ninoForm.pin}
+                  onChange={e => setNinoForm(f=>({...f, pin:e.target.value.replace(/\D/g,'').slice(0,4)}))}
+                  placeholder="Ej: 1234"
+                  style={{
+                    width:'100%', padding:'0.75rem 1rem', borderRadius:'0.875rem',
+                    background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.15)',
+                    color:'white', fontFamily:'var(--font-adult)', fontSize:'1.5rem', letterSpacing:'0.5rem',
+                    boxSizing:'border-box',
+                  }}
+                />
+                <p style={{ fontSize:'0.75rem', color:'rgba(255,255,255,0.35)', marginTop:'0.3rem' }}>
+                  El ni\u00f1o usar\u00e1 este PIN para acceder.
+                </p>
+              </div>
+
+              {ninoError && (
+                <p style={{ color:'#fca5a5', fontFamily:'var(--font-adult)', fontWeight:700, margin:0 }}>\u274c {ninoError}</p>
+              )}
+
+              <div style={{ display:'flex', gap:'0.75rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  style={{
+                    flex:1, padding:'0.75rem', borderRadius:'1rem',
+                    background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)',
+                    color:'rgba(255,255,255,0.6)', fontFamily:'var(--font-adult)', cursor:'pointer',
+                  }}
+                >Cancelar</button>
+                <button
+                  type="submit"
+                  disabled={ninoLoading}
+                  style={{
+                    flex:2, padding:'0.75rem', borderRadius:'1rem',
+                    background:'linear-gradient(135deg,#2eb87e,#06b6d4)',
+                    border:'none', color:'white', fontFamily:'var(--font-adult)',
+                    fontWeight:700, cursor:'pointer', opacity: ninoLoading ? 0.6 : 1,
+                  }}
+                >
+                  {ninoLoading ? 'Creando...' : '\u2714\ufe0f Crear perfil'}
+                </button>
+              </div>
+            </motion.form>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
