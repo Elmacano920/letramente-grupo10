@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Letramente — SeleccionPerfil (v3.1)
  * Grupo 10 | Aprende, Comprende, Crea
  *
@@ -355,27 +355,18 @@ const SeleccionPerfil = () => {
     setSelected(nino);
     speak(`Hola ${nino.nombre}! Entrando al juego.`, 0.86, 1.18);
 
-    // Llamar al endpoint de acceso directo (sin PIN)
-    try {
-      const res = await fetch(`${API_BASE}/auth/child-login`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ child_id: nino._id }),
-      });
-      const data = await res.json();
-      if (data.success && data.token) {
-        localStorage.setItem("letramente_token", data.token);
-        // Esperar 1.6s para que el nino vea la animacion de bienvenida
-        setTimeout(() => navigate("/juego", { replace: true }), 1600);
-      } else {
-        setEntering(false);
-        setSelected(null);
-      }
-    } catch {
+    // loginPin viene de AuthContext — actualiza user + token en un solo paso
+    // El segundo argumento (pin) se ignora en v3.1 (endpoint child-login sin PIN)
+    const res = await loginPin(nino._id, null);
+
+    if (res.success) {
+      // Esperar que el niño vea la animación de bienvenida, luego redirigir
+      setTimeout(() => navigate("/juego", { replace: true }), 1600);
+    } else {
       setEntering(false);
       setSelected(null);
     }
-  }, [entering, navigate]);
+  }, [entering, navigate, loginPin]);
 
   // ─── Pantalla: cargando ──────────────────────────────────────────────────
   if (loading) return (
