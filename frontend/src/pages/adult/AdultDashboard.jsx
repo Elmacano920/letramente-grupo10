@@ -54,7 +54,7 @@ const AdultDashboard = () => {
   const [ninos,         setNinos]         = useState([]);
   const [loadingNinos,  setLoadingNinos]  = useState(false);
   const [showModal,     setShowModal]     = useState(false);
-  const [ninoForm,      setNinoForm]      = useState({ nombre:'', avatar:'dino', pin:'' });
+  const [ninoForm,      setNinoForm]      = useState({ nombre:'', avatar:'dino' });
   const [ninoError,     setNinoError]     = useState('');
   const [ninoLoading,   setNinoLoading]   = useState(false);
   const [linkCopied,    setLinkCopied]    = useState(false);
@@ -91,23 +91,23 @@ const AdultDashboard = () => {
     finally { setLoadingNinos(false); }
   };
 
-  // Crear nino
+  // Crear nino (v3.1 — sin PIN)
   const handleCrearNino = async (e) => {
     e.preventDefault();
     setNinoError('');
-    if (!/^\d{4}$/.test(ninoForm.pin))
-      return setNinoError('El PIN debe ser exactamente 4 digitos (0-9)');
+    if (!ninoForm.nombre.trim())
+      return setNinoError('El nombre es requerido');
     setNinoLoading(true);
     try {
       const res = await fetch(`${API_BASE}/ninos`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify(ninoForm),
+        body: JSON.stringify({ nombre: ninoForm.nombre, avatar: ninoForm.avatar }),
       });
       const data = await res.json();
       if (data.success) {
         setShowModal(false);
-        setNinoForm({ nombre:'', avatar:'dino', pin:'' });
+        setNinoForm({ nombre:'', avatar:'dino' });
         fetchNinos();
       } else {
         setNinoError(data.error || 'Error al crear el perfil');
@@ -620,27 +620,17 @@ const AdultDashboard = () => {
                 </div>
               </div>
 
-              {/* PIN */}
-              <div>
-                <label style={{ display:'block', fontSize:'0.8rem', fontWeight:700, color:'rgba(255,255,255,0.5)', marginBottom:'0.4rem' }}>PIN de 4 d\u00edgitos</label>
-                <input
-                  required
-                  type="password"
-                  maxLength={4}
-                  value={ninoForm.pin}
-                  onChange={e => setNinoForm(f=>({...f, pin:e.target.value.replace(/\D/g,'').slice(0,4)}))}
-                  placeholder="Ej: 1234"
-                  style={{
-                    width:'100%', padding:'0.75rem 1rem', borderRadius:'0.875rem',
-                    background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.15)',
-                    color:'white', fontFamily:'var(--font-adult)', fontSize:'1.5rem', letterSpacing:'0.5rem',
-                    boxSizing:'border-box',
-                  }}
-                />
-                <p style={{ fontSize:'0.75rem', color:'rgba(255,255,255,0.35)', marginTop:'0.3rem' }}>
-                  El ni\u00f1o usar\u00e1 este PIN para acceder.
-                </p>
+
+              {/* v3.1: sin PIN — el nino entra solo con clic en su avatar */}
+              <div style={{
+                padding:'0.6rem 0.85rem', borderRadius:'0.875rem',
+                background:'rgba(46,184,126,0.08)', border:'1px solid rgba(46,184,126,0.25)',
+                fontSize:'0.78rem', color:'rgba(255,255,255,0.45)', lineHeight:1.5,
+              }}>
+                ✅ <strong style={{ color:'#2eb87e' }}>Sin contraseña.</strong>{' '}
+                El niño entrará tocando su avatar directamente.
               </div>
+
 
               {ninoError && (
                 <p style={{ color:'#fca5a5', fontFamily:'var(--font-adult)', fontWeight:700, margin:0 }}>\u274c {ninoError}</p>

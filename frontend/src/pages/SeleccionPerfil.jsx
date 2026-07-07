@@ -1,401 +1,478 @@
-/**
- * Letramente — SeleccionPerfil (v3.0)
+﻿/**
+ * Letramente — SeleccionPerfil (v3.1)
  * Grupo 10 | Aprende, Comprende, Crea
  *
- * Pantalla de seleccion de perfil para ninos.
- * Disenada para minimizar lectura y maximizar accesibilidad:
+ * Pantalla de seleccion de perfil estilo "Netflix para ninos":
+ *  - Grid de avatares grandes y coloridos.
+ *  - Tooltip con el nombre aparece al hacer hover (CSS puro, sin librerias).
+ *  - Clic en el avatar = inicio de sesion inmediato (sin PIN).
+ *  - TTS da la bienvenida y anuncia el nombre al pasar el cursor.
+ *  - Animacion de seleccion con "check" y redireccion suave.
  *
- *   1. Avatares grandes y coloridos con el nombre del nino debajo.
- *   2. TTS (Text-to-Speech) al hacer hover o foco sobre un avatar.
- *   3. Al seleccionar: aparece teclado PIN de 4 botones grandes.
- *   4. Cada digit del PIN tiene feedback sonoro al pulsarse.
- *   5. Audio de bienvenida automatico al cargar la pagina.
- *
- * Ruta: /seleccionar?tutor=<tutor_id>
- * El adulto comparte este link con sus ninos.
+ * Ruta publica: /seleccionar?tutor=<tutor_id>
  */
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
 
-const AVATAR_EMOJIS = {
-  dino:  "🦕", cat:   "🐱", robot: "🤖",
-  bunny: "🐰", owl:   "🦉", fox:   "🦊",
-};
-
-const AVATAR_COLORS = {
-  dino:  { bg: "rgba(46,184,126,0.2)",   border: "#2eb87e",  glow: "rgba(46,184,126,0.4)"  },
-  cat:   { bg: "rgba(255,123,44,0.2)",   border: "#ff7b2c",  glow: "rgba(255,123,44,0.4)"  },
-  robot: { bg: "rgba(6,182,212,0.2)",    border: "#06b6d4",  glow: "rgba(6,182,212,0.4)"   },
-  bunny: { bg: "rgba(236,72,153,0.2)",   border: "#ec4899",  glow: "rgba(236,72,153,0.4)"  },
-  owl:   { bg: "rgba(139,92,246,0.2)",   border: "#8b5cf6",  glow: "rgba(139,92,246,0.4)"  },
-  fox:   { bg: "rgba(255,210,63,0.2)",   border: "#ffd23f",  glow: "rgba(255,210,63,0.4)"  },
+// ─── Configuracion de avatares ────────────────────────────────────────────────
+const AVATAR_CONFIG = {
+  dino:  { emoji: "🦕", color: "#2eb87e", shadow: "rgba(46,184,126,0.55)",  bg: "linear-gradient(145deg,#0d3d27,#1a6644)" },
+  cat:   { emoji: "🐱", color: "#ff7b2c", shadow: "rgba(255,123,44,0.55)",  bg: "linear-gradient(145deg,#3d1a08,#7a3010)" },
+  robot: { emoji: "🤖", color: "#06b6d4", shadow: "rgba(6,182,212,0.55)",   bg: "linear-gradient(145deg,#082a35,#0e5568)" },
+  bunny: { emoji: "🐰", color: "#ec4899", shadow: "rgba(236,72,153,0.55)",  bg: "linear-gradient(145deg,#3b0f27,#7c1f52)" },
+  owl:   { emoji: "🦉", color: "#8b5cf6", shadow: "rgba(139,92,246,0.55)",  bg: "linear-gradient(145deg,#1e0b3d,#3d1a7a)" },
+  fox:   { emoji: "🦊", color: "#ffd23f", shadow: "rgba(255,210,63,0.55)",  bg: "linear-gradient(145deg,#3d3008,#7a610f)" },
 };
 
 // ─── TTS helper ──────────────────────────────────────────────────────────────
-const speak = (text, rate = 0.85, pitch = 1.2) => {
+let ttsTimeout = null;
+const speak = (text, rate = 0.88, pitch = 1.15) => {
   if (!("speechSynthesis" in window)) return;
-  window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang   = "es-VE";
-  u.rate   = rate;
-  u.pitch  = pitch;
-  u.volume = 1;
-  const voices = window.speechSynthesis.getVoices();
-  const esVoice = voices.find(v => v.lang.startsWith("es"));
-  if (esVoice) u.voice = esVoice;
-  setTimeout(() => window.speechSynthesis.speak(u), 50);
+  clearTimeout(ttsTimeout);
+  ttsTimeout = setTimeout(() => {
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "es-VE"; u.rate = rate; u.pitch = pitch; u.volume = 1;
+    const voices = window.speechSynthesis.getVoices();
+    const esVoice = voices.find(v => v.lang.startsWith("es"));
+    if (esVoice) u.voice = esVoice;
+    window.speechSynthesis.speak(u);
+  }, 120);
 };
 
-const DIGIT_WORDS = ["cero","uno","dos","tres","cuatro","cinco","seis","siete","ocho","nueve"];
+// ─── CSS inyectado una sola vez en el <head> ─────────────────────────────────
+// Todo el efecto tooltip y las animaciones estan en CSS puro.
+const STYLES = `
+  @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@700;900&display=swap');
 
-// ─── Teclado PIN ─────────────────────────────────────────────────────────────
-const PinKeyboard = ({ onDigit, onDelete, onSubmit, pin, error }) => {
-  const digits = [1,2,3,4,5,6,7,8,9,null,0,"⌫"];
+  .sp-root {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+    gap: 2.5rem;
+    background: radial-gradient(ellipse at 30% 0%, rgba(139,92,246,0.12) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 80%, rgba(6,182,212,0.1) 0%, transparent 60%);
+    font-family: 'Nunito', 'Comic Sans MS', cursive, sans-serif;
+  }
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.85 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.85 }}
-      style={{
-        display:       "flex",
-        flexDirection: "column",
-        alignItems:    "center",
-        gap:           "1.25rem",
-      }}
-    >
-      {/* Puntos del PIN */}
-      <div style={{ display: "flex", gap: "0.75rem" }}>
-        {[0,1,2,3].map(i => (
-          <motion.div
-            key={i}
-            animate={{ scale: pin.length > i ? 1.2 : 1 }}
-            transition={{ type: "spring", stiffness: 400, damping: 15 }}
-            style={{
-              width:        "18px",
-              height:       "18px",
-              borderRadius: "50%",
-              background:   pin.length > i ? "#ffd23f" : "rgba(255,255,255,0.15)",
-              border:       "2px solid rgba(255,255,255,0.3)",
-              transition:   "background 0.2s",
-            }}
-          />
-        ))}
-      </div>
+  /* ── Header ── */
+  .sp-header {
+    text-align: center;
+    animation: sp-fadeDown 0.6s ease both;
+  }
+  .sp-header h1 {
+    font-size: clamp(1.8rem, 5vw, 2.8rem);
+    font-weight: 900;
+    margin: 0.2rem 0 0;
+    background: linear-gradient(135deg, #06b6d4, #8b5cf6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .sp-header p {
+    color: rgba(255,255,255,0.45);
+    font-size: 1rem;
+    margin: 0.3rem 0 0;
+    font-weight: 700;
+  }
 
-      {/* Error */}
-      <AnimatePresence>
-        {error && (
-          <motion.p
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            style={{ color: "#fca5a5", fontFamily: "Nunito,sans-serif", fontWeight: 800, margin: 0 }}
-          >
-            ❌ {error}
-          </motion.p>
-        )}
-      </AnimatePresence>
+  /* ── Grid de perfiles ── */
+  .sp-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 2rem;
+    max-width: 720px;
+    width: 100%;
+    animation: sp-fadeUp 0.5s ease 0.2s both;
+  }
 
-      {/* Grid de botones */}
-      <div style={{
-        display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "0.75rem",
-      }}>
-        {digits.map((d, i) => (
-          <motion.button
-            key={i}
-            whileHover={d !== null ? { scale: 1.08, y: -2 } : {}}
-            whileTap={d !== null ? { scale: 0.92 } : {}}
-            disabled={d === null}
-            onClick={() => {
-              if (d === null) return;
-              if (d === "⌫") {
-                speak("borrar", 1, 1.3);
-                onDelete();
-              } else {
-                speak(DIGIT_WORDS[d], 1.1, 1.3);
-                onDigit(String(d));
-              }
-            }}
-            style={{
-              width:        "72px",
-              height:       "72px",
-              borderRadius: "1.25rem",
-              border:       "2px solid rgba(255,255,255,0.15)",
-              background:   d === null ? "transparent" : "rgba(255,255,255,0.06)",
-              color:        "white",
-              fontSize:     d === "⌫" ? "1.6rem" : "2rem",
-              fontWeight:   900,
-              fontFamily:   "Nunito,sans-serif",
-              cursor:       d === null ? "default" : "pointer",
-              display:      "flex",
-              alignItems:   "center",
-              justifyContent: "center",
-              transition:   "all 0.15s",
-            }}
-          >
-            {d !== null ? d : ""}
-          </motion.button>
-        ))}
-      </div>
+  /* ── Tarjeta de perfil ── */
+  .sp-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    cursor: pointer;
+    border: none;
+    background: none;
+    padding: 0;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .sp-card:focus-visible .sp-avatar {
+    outline: 3px solid white;
+    outline-offset: 4px;
+  }
 
-      {/* Boton entrar */}
-      {pin.length === 4 && (
-        <motion.button
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          whileTap={{ scale: 0.96 }}
-          onClick={onSubmit}
-          style={{
-            padding:      "0.9rem 2.5rem",
-            borderRadius: "1.25rem",
-            background:   "linear-gradient(135deg, #2eb87e, #06b6d4)",
-            border:       "none",
-            color:        "white",
-            fontSize:     "1.2rem",
-            fontWeight:   900,
-            fontFamily:   "Nunito,sans-serif",
-            cursor:       "pointer",
-            boxShadow:    "0 4px 20px rgba(46,184,126,0.4)",
-          }}
-        >
-          ¡Entrar! 🚀
-        </motion.button>
-      )}
-    </motion.div>
-  );
+  /* ── Avatar circular ── */
+  .sp-avatar {
+    width: clamp(110px, 18vw, 148px);
+    height: clamp(110px, 18vw, 148px);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(3.5rem, 8vw, 5rem);
+    border: 4px solid transparent;
+    transition: transform 0.22s cubic-bezier(.34,1.56,.64,1),
+                box-shadow 0.22s ease,
+                border-color 0.22s ease;
+    position: relative;
+    line-height: 1;
+    user-select: none;
+  }
+  .sp-avatar::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    transition: border-color 0.22s ease, opacity 0.22s ease;
+    opacity: 0;
+  }
+  .sp-card:hover .sp-avatar,
+  .sp-card:focus-visible .sp-avatar {
+    transform: scale(1.12) translateY(-8px);
+  }
+  .sp-card:hover .sp-avatar::after,
+  .sp-card:focus-visible .sp-avatar::after {
+    opacity: 1;
+  }
+  .sp-card:active .sp-avatar {
+    transform: scale(0.96) translateY(0);
+  }
+
+  /* ── TOOLTIP CSS PURO: nombre del nino ── */
+  .sp-tooltip {
+    position: absolute;
+    bottom: calc(100% + 14px);
+    left: 50%;
+    transform: translateX(-50%) scale(0.85);
+    background: rgba(15, 16, 28, 0.96);
+    border: 2px solid rgba(255,255,255,0.18);
+    border-radius: 1rem;
+    padding: 0.45rem 1.1rem;
+    white-space: nowrap;
+    font-family: 'Nunito', cursive;
+    font-size: 1rem;
+    font-weight: 900;
+    color: white;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.18s ease, transform 0.18s cubic-bezier(.34,1.56,.64,1);
+    backdrop-filter: blur(12px);
+    z-index: 10;
+  }
+  /* Flechita del tooltip */
+  .sp-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 7px solid transparent;
+    border-top-color: rgba(15,16,28,0.96);
+  }
+  /* Activar tooltip al hover de la tarjeta */
+  .sp-card:hover .sp-tooltip,
+  .sp-card:focus-visible .sp-tooltip {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+
+  /* ── Nombre debajo del avatar ── */
+  .sp-name {
+    margin-top: 0.85rem;
+    font-size: 1.05rem;
+    font-weight: 900;
+    color: rgba(255,255,255,0.82);
+    letter-spacing: 0.01em;
+    transition: color 0.2s ease;
+    text-align: center;
+    max-width: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sp-card:hover .sp-name {
+    color: white;
+  }
+
+  /* ── Estado: seleccionando (loading) ── */
+  .sp-card.sp-selecting .sp-avatar {
+    animation: sp-pulse 0.5s ease infinite alternate;
+  }
+  @keyframes sp-pulse {
+    from { box-shadow: 0 0 0 0 rgba(255,255,255,0.3); }
+    to   { box-shadow: 0 0 0 16px rgba(255,255,255,0); }
+  }
+
+  /* ── Overlay de bienvenida al seleccionar ── */
+  .sp-welcome-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    background: rgba(8,9,18,0.92);
+    backdrop-filter: blur(16px);
+    animation: sp-fadeIn 0.25s ease both;
+  }
+  .sp-welcome-avatar {
+    font-size: 7rem;
+    animation: sp-bounce 0.6s cubic-bezier(.34,1.56,.64,1) both;
+  }
+  .sp-welcome-text {
+    font-size: 2rem;
+    font-weight: 900;
+    color: white;
+    animation: sp-fadeUp 0.4s ease 0.2s both;
+  }
+  .sp-welcome-sub {
+    font-size: 1.1rem;
+    color: rgba(255,255,255,0.5);
+    animation: sp-fadeUp 0.4s ease 0.35s both;
+  }
+
+  /* ── Estados de error / carga ── */
+  .sp-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    color: rgba(255,255,255,0.45);
+    font-size: 1rem;
+    font-weight: 700;
+    text-align: center;
+    padding: 2rem;
+  }
+  .sp-state-icon { font-size: 4rem; }
+
+  /* ── Footer ── */
+  .sp-footer {
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.18);
+    text-align: center;
+  }
+  .sp-footer a {
+    color: rgba(6,182,212,0.5);
+    text-decoration: none;
+  }
+  .sp-footer a:hover { color: rgba(6,182,212,0.8); }
+
+  /* ── Keyframes ── */
+  @keyframes sp-fadeDown {
+    from { opacity: 0; transform: translateY(-20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes sp-fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes sp-fadeIn {
+    from { opacity: 0; } to { opacity: 1; }
+  }
+  @keyframes sp-bounce {
+    from { opacity: 0; transform: scale(0.4); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+
+  /* ── Entrada escalonada de tarjetas ── */
+  .sp-card { animation: sp-cardIn 0.45s cubic-bezier(.34,1.56,.64,1) both; }
+  .sp-card:nth-child(1) { animation-delay: 0.05s; }
+  .sp-card:nth-child(2) { animation-delay: 0.12s; }
+  .sp-card:nth-child(3) { animation-delay: 0.19s; }
+  .sp-card:nth-child(4) { animation-delay: 0.26s; }
+  .sp-card:nth-child(5) { animation-delay: 0.33s; }
+  .sp-card:nth-child(6) { animation-delay: 0.40s; }
+  @keyframes sp-cardIn {
+    from { opacity: 0; transform: scale(0.7) translateY(30px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+`;
+
+// ─── Inyectar CSS una sola vez ────────────────────────────────────────────────
+let styleInjected = false;
+const injectStyles = () => {
+  if (styleInjected) return;
+  styleInjected = true;
+  const tag = document.createElement("style");
+  tag.setAttribute("data-sp", "1");
+  tag.textContent = STYLES;
+  document.head.appendChild(tag);
 };
 
 // ─── Componente Principal ─────────────────────────────────────────────────────
 const SeleccionPerfil = () => {
   const [searchParams] = useSearchParams();
-  const navigate        = useNavigate();
-  const { loginPin }    = useAuth();
+  const navigate       = useNavigate();
+  const { loginPin }   = useAuth();
 
   const tutorId = searchParams.get("tutor");
 
-  const [ninos,       setNinos]       = useState([]);
-  const [loading,     setLoading]     = useState(true);
-  const [selected,    setSelected]    = useState(null); // nino seleccionado
-  const [pin,         setPin]         = useState("");
-  const [pinError,    setPinError]    = useState("");
-  const [loggingIn,   setLoggingIn]   = useState(false);
+  const [ninos,     setNinos]     = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [selected,  setSelected]  = useState(null);  // nino que esta entrando
+  const [entering,  setEntering]  = useState(false);
 
-  // Cargar los ninos del tutor (endpoint publico — no requiere token)
+  // Inyectar CSS al montar
+  useEffect(() => { injectStyles(); }, []);
+
+  // Cargar perfiles del tutor (endpoint publico)
   useEffect(() => {
     if (!tutorId) { setLoading(false); return; }
     fetch(`${API_BASE}/ninos/publico?tutor=${tutorId}`)
       .then(r => r.json())
-      .then(data => {
-        if (data.success) setNinos(data.ninos || []);
-      })
+      .then(d => { if (d.success) setNinos(d.ninos || []); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [tutorId]);
 
-  // Bienvenida por TTS al cargar
+  // Bienvenida por voz al cargar
   useEffect(() => {
-    const t = setTimeout(() => {
-      speak("Hola. Elige tu personaje para jugar.", 0.82, 1.15);
-    }, 700);
-    return () => clearTimeout(t);
-  }, []);
-
-  const handleSelectNino = (nino) => {
-    setSelected(nino);
-    setPin("");
-    setPinError("");
-    speak(`Hola ${nino.nombre}! Escribe tu clave secreta.`, 0.85, 1.2);
-  };
-
-  const handleDigit = useCallback((d) => {
-    setPin(p => p.length < 4 ? p + d : p);
-    setPinError("");
-  }, []);
-
-  const handleDelete = useCallback(() => {
-    setPin(p => p.slice(0, -1));
-    setPinError("");
-  }, []);
-
-  const handleSubmit = async () => {
-    if (pin.length !== 4 || !selected) return;
-    setLoggingIn(true);
-    speak("Entrando...", 0.9, 1.1);
-    const res = await loginPin(selected._id, pin);
-    setLoggingIn(false);
-    if (res.success) {
-      navigate("/juego", { replace: true });
-    } else {
-      speak("Esa clave no es correcta. Intenta de nuevo.", 0.85, 1.1);
-      setPinError("PIN incorrecto. ¡Inténtalo de nuevo!");
-      setPin("");
+    if (!loading && ninos.length > 0) {
+      const t = setTimeout(() => speak("Hola! Toca tu personaje para entrar.", 0.84, 1.15), 800);
+      return () => clearTimeout(t);
     }
-  };
+  }, [loading, ninos.length]);
 
-  // ─── Pantalla de carga ────────────────────────────────────────────────────
+  // ─── Clic en avatar = entrar directamente ────────────────────────────────
+  const handleSelect = useCallback(async (nino) => {
+    if (entering) return;
+    setEntering(true);
+    setSelected(nino);
+    speak(`Hola ${nino.nombre}! Entrando al juego.`, 0.86, 1.18);
+
+    // Llamar al endpoint de acceso directo (sin PIN)
+    try {
+      const res = await fetch(`${API_BASE}/auth/child-login`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ child_id: nino._id }),
+      });
+      const data = await res.json();
+      if (data.success && data.token) {
+        localStorage.setItem("letramente_token", data.token);
+        // Esperar 1.6s para que el nino vea la animacion de bienvenida
+        setTimeout(() => navigate("/juego", { replace: true }), 1600);
+      } else {
+        setEntering(false);
+        setSelected(null);
+      }
+    } catch {
+      setEntering(false);
+      setSelected(null);
+    }
+  }, [entering, navigate]);
+
+  // ─── Pantalla: cargando ──────────────────────────────────────────────────
   if (loading) return (
-    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:"1rem" }}>
-      <div style={{ fontSize:"4rem" }}>⏳</div>
-      <p style={{ fontFamily:"Nunito,sans-serif", color:"rgba(255,255,255,0.5)" }}>Cargando perfiles...</p>
+    <div className="sp-root">
+      <div className="sp-state">
+        <div className="sp-state-icon">⏳</div>
+        <span>Cargando perfiles...</span>
+      </div>
     </div>
   );
 
-  // ─── Sin tutor ────────────────────────────────────────────────────────────
+  // ─── Pantalla: sin tutor_id en la URL ────────────────────────────────────
   if (!tutorId) return (
-    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:"1rem", textAlign:"center", padding:"2rem" }}>
-      <div style={{ fontSize:"5rem" }}>🔗</div>
-      <h2 style={{ fontFamily:"Nunito,sans-serif", color:"white" }}>Enlace incompleto</h2>
-      <p style={{ fontFamily:"Nunito,sans-serif", color:"rgba(255,255,255,0.5)" }}>
-        Pídele a tu maestro o padre que te dé el enlace correcto.
-      </p>
+    <div className="sp-root">
+      <div className="sp-state">
+        <div className="sp-state-icon">🔗</div>
+        <h2 style={{ color: "white", margin: 0 }}>Enlace incompleto</h2>
+        <p>Pídele a tu maestro o padre que te dé el enlace correcto.</p>
+      </div>
     </div>
   );
+
+  const cfg  = selected ? (AVATAR_CONFIG[selected.avatar] || AVATAR_CONFIG.dino) : null;
 
   return (
-    <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"2rem", gap:"2rem" }}>
+    <>
+      {/* ── Overlay de bienvenida al seleccionar ── */}
+      {entering && selected && (
+        <div className="sp-welcome-overlay">
+          <div className="sp-welcome-avatar">{(AVATAR_CONFIG[selected.avatar] || AVATAR_CONFIG.dino).emoji}</div>
+          <div className="sp-welcome-text">¡Hola, {selected.nombre}! 👋</div>
+          <div className="sp-welcome-sub">Preparando tu juego...</div>
+        </div>
+      )}
 
-      {/* Logo */}
-      <motion.div
-        initial={{ opacity:0, y:-20 }}
-        animate={{ opacity:1, y:0 }}
-        style={{ textAlign:"center" }}
-      >
-        <div style={{ fontSize:"4rem", marginBottom:"0.25rem" }}>🧠</div>
-        <h1 style={{ fontFamily:"Nunito,sans-serif", fontWeight:900, fontSize:"2rem", margin:0,
-                     background:"linear-gradient(135deg,#06b6d4,#8b5cf6)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
-          Letramente
-        </h1>
-        <p style={{ fontFamily:"Nunito,sans-serif", color:"rgba(255,255,255,0.5)", margin:"0.25rem 0 0" }}>
-          ¿Quién eres tú? 👇
-        </p>
-      </motion.div>
+      <div className="sp-root">
+        {/* ── Header ── */}
+        <div className="sp-header">
+          <div style={{ fontSize: "3.5rem" }}>🧠</div>
+          <h1>Letramente</h1>
+          <p>¿Quién eres tú? Toca tu personaje 👇</p>
+        </div>
 
-      <AnimatePresence mode="wait">
-        {/* ─── Seleccion de avatar ─────────────────────────────────────── */}
-        {!selected && (
-          <motion.div
-            key="avatars"
-            initial={{ opacity:0, x:-40 }}
-            animate={{ opacity:1, x:0 }}
-            exit={{ opacity:0, x:-40 }}
-            style={{ display:"flex", flexWrap:"wrap", gap:"1.5rem", justifyContent:"center", maxWidth:"600px" }}
-          >
-            {ninos.length === 0 ? (
-              <div style={{ textAlign:"center", padding:"2rem" }}>
-                <div style={{ fontSize:"3rem" }}>📭</div>
-                <p style={{ fontFamily:"Nunito,sans-serif", color:"rgba(255,255,255,0.4)", marginTop:"0.75rem" }}>
-                  No hay perfiles aún. Pídele a tu maestro que te agregue.
-                </p>
-              </div>
-            ) : ninos.map((nino, i) => {
-              const colors = AVATAR_COLORS[nino.avatar] || AVATAR_COLORS.dino;
+        {/* ── Grid de perfiles ── */}
+        {ninos.length === 0 ? (
+          <div className="sp-state">
+            <div className="sp-state-icon">📭</div>
+            <p>No hay perfiles todavía.<br/>Pídele a tu maestro que te agregue.</p>
+          </div>
+        ) : (
+          <div className="sp-grid">
+            {ninos.map((nino) => {
+              const av = AVATAR_CONFIG[nino.avatar] || AVATAR_CONFIG.dino;
               return (
-                <motion.button
+                <button
                   key={nino._id}
-                  id={`perfil-${nino._id}`}
-                  initial={{ opacity:0, y:30, scale:0.8 }}
-                  animate={{ opacity:1, y:0,  scale:1  }}
-                  transition={{ delay: i * 0.1, type:"spring", stiffness:200 }}
-                  whileHover={{ y:-10, scale:1.06 }}
-                  whileTap={{ scale:0.95 }}
-                  onClick={() => handleSelectNino(nino)}
-                  onMouseEnter={() => speak(`Hola, soy ${nino.nombre}`, 0.85, 1.2)}
-                  onFocus={() => speak(`Hola, soy ${nino.nombre}`, 0.85, 1.2)}
-                  style={{
-                    display:       "flex",
-                    flexDirection: "column",
-                    alignItems:    "center",
-                    gap:           "0.75rem",
-                    padding:       "1.5rem 1.75rem",
-                    borderRadius:  "2rem",
-                    border:        `3px solid ${colors.border}`,
-                    background:    colors.bg,
-                    cursor:        "pointer",
-                    boxShadow:     `0 8px 32px ${colors.glow}`,
-                    minWidth:      "130px",
-                    transition:    "all 0.2s ease",
-                  }}
+                  className="sp-card"
+                  onClick={() => handleSelect(nino)}
+                  onMouseEnter={() => speak(nino.nombre, 0.88, 1.2)}
+                  onFocus={() => speak(nino.nombre, 0.88, 1.2)}
+                  aria-label={`Entrar como ${nino.nombre}`}
                 >
-                  <motion.div
-                    animate={{ y:[0,-8,0] }}
-                    transition={{ repeat:Infinity, duration:2.5, delay: i*0.4, ease:"easeInOut" }}
-                    style={{ fontSize:"4.5rem", lineHeight:1 }}
+                  {/* Tooltip CSS puro — aparece al hover sin JS */}
+                  <div
+                    className="sp-tooltip"
+                    style={{ borderColor: av.color, color: av.color }}
                   >
-                    {AVATAR_EMOJIS[nino.avatar] || "🦕"}
-                  </motion.div>
-                  <span style={{ fontFamily:"Nunito,sans-serif", fontWeight:900, fontSize:"1.1rem", color:"white" }}>
                     {nino.nombre}
-                  </span>
-                </motion.button>
+                  </div>
+
+                  {/* Avatar */}
+                  <div
+                    className="sp-avatar"
+                    style={{
+                      background: av.bg,
+                      borderColor: av.color,
+                      boxShadow: `0 8px 32px ${av.shadow}`,
+                    }}
+                  >
+                    {av.emoji}
+                  </div>
+
+                  {/* Nombre debajo */}
+                  <div className="sp-name">{nino.nombre}</div>
+                </button>
               );
             })}
-          </motion.div>
+          </div>
         )}
 
-        {/* ─── Ingreso de PIN ──────────────────────────────────────────── */}
-        {selected && (
-          <motion.div
-            key="pin"
-            initial={{ opacity:0, x:40 }}
-            animate={{ opacity:1, x:0 }}
-            exit={{ opacity:0, x:40 }}
-            style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:"1.25rem" }}
-          >
-            {/* Avatar del seleccionado */}
-            <motion.div
-              animate={{ y:[0,-6,0] }}
-              transition={{ repeat:Infinity, duration:2.5, ease:"easeInOut" }}
-              style={{ fontSize:"5rem" }}
-            >
-              {AVATAR_EMOJIS[selected.avatar] || "🦕"}
-            </motion.div>
-            <h2 style={{ fontFamily:"Nunito,sans-serif", fontWeight:900, fontSize:"1.5rem", margin:0, color:"white" }}>
-              ¡Hola, {selected.nombre}!
-            </h2>
-            <p style={{ fontFamily:"Nunito,sans-serif", color:"rgba(255,255,255,0.5)", margin:0, fontSize:"0.95rem" }}>
-              🔒 Escribe tu clave secreta
-            </p>
-
-            {loggingIn ? (
-              <div style={{ fontSize:"3rem" }}>⏳</div>
-            ) : (
-              <PinKeyboard
-                pin={pin}
-                error={pinError}
-                onDigit={handleDigit}
-                onDelete={handleDelete}
-                onSubmit={handleSubmit}
-              />
-            )}
-
-            {/* Volver */}
-            <button
-              onClick={() => { setSelected(null); speak("Elige tu personaje.", 0.85, 1.1); }}
-              style={{
-                background:"none", border:"none", color:"rgba(255,255,255,0.4)",
-                fontFamily:"Nunito,sans-serif", fontSize:"0.9rem", cursor:"pointer", marginTop:"0.5rem",
-              }}
-            >
-              ← Cambiar perfil
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Enlace para adultos */}
-      <p style={{ fontFamily:"Nunito,sans-serif", fontSize:"0.75rem", color:"rgba(255,255,255,0.2)", textAlign:"center" }}>
-        ¿Eres maestro o padre?{" "}
-        <a href="/login" style={{ color:"rgba(6,182,212,0.6)", textDecoration:"none" }}>
-          Inicia sesión aquí
-        </a>
-      </p>
-    </div>
+        {/* ── Footer ── */}
+        <div className="sp-footer">
+          ¿Eres maestro o padre?{" "}
+          <a href="/login">Inicia sesión aquí</a>
+        </div>
+      </div>
+    </>
   );
 };
 

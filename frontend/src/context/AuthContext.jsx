@@ -112,19 +112,18 @@ export const AuthProvider = ({ children }) => {
     setError(null);
   }, []);
 
-  // ─── Login PIN (ninos) ────────────────────────────────────────────────────
-  // child_id: el _id del perfil del nino
-  // pin: string de 4 digitos
-  const loginPin = useCallback(async (child_id, pin) => {
+  // ─── Login directo nino (v3.1 — sin PIN) ───────────────────────────────────
+  // Solo necesita el child_id del perfil del nino.
+  const loginPin = useCallback(async (child_id, _pin) => {
     setError(null);
     try {
-      const res = await API.post('/auth/login-pin', { child_id, pin });
+      const res = await API.post('/auth/child-login', { child_id });
       const { user: userData, token } = res.data;
       localStorage.setItem(TOKEN_KEY, token);
       setUser(userData);
       return { success: true, role: userData.rol };
     } catch (err) {
-      const message = err.response?.data?.error || err.message || 'PIN incorrecto';
+      const message = err.response?.data?.error || err.message || 'Error al iniciar sesion';
       setError(message);
       return { success: false, error: message };
     }
